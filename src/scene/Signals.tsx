@@ -1,4 +1,5 @@
 import { useFrame } from "@react-three/fiber";
+import { useRef } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import type { Player } from "textalive-app-api";
 import { getBeatAmp, getProgress, getVocalAmp, isChorus } from "../textalive/analysis";
@@ -28,6 +29,9 @@ interface Props {
 
 // Runs first in the frame loop so children read fresh values.
 export function SignalsUpdater({ player, positionRef, isPlaying, signalsRef }: Props) {
+  // Cached <audio>/<video> element (found once the song loads, re-found if replaced).
+  const audioRef = useRef<HTMLMediaElement | null>(null);
+
   useFrame(() => {
     const s = signalsRef.current;
     if (!s) return;
@@ -38,7 +42,21 @@ export function SignalsUpdater({ player, positionRef, isPlaying, signalsRef }: P
       return;
     }
 
-    const pos = positionRef.current;
+    // Read the true playback position straight from the audio element TextAlive
+    // injects inside mediaElement. Its clock is always correct — even when the
+    // Songle timer is stale after a seek — and reading currentTime is free. Fall
+    // back to the timer-derived mediaPosition until the element exists (or if it's
+    // an iframe embed we can't read).
+    let audio = audioRef.current;
+    if (!audio?.isConnected) {
+      const found = player.mediaElement?.querySelector?.("audio, video");
+      audio = found instanceof HTMLMediaElement ? found : null;
+      audioRef.current = audio;
+    }
+    const pos =
+      audio && Number.isFinite(audio.currentTime) ? audio.currentTime * 1000 : player.mediaPosition;
+    positionRef.current = pos;
+
     const progress = getProgress(player, pos);
     s.pos = pos;
     s.sat = clamp01(progress * 1.2);

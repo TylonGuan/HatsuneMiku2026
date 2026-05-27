@@ -21,21 +21,22 @@ export const SONG = {
 // shown as a subtitle. A few chorus lines reorder in English grammar; each is
 // attached to the phrase whose Japanese it translates so subtitles stay in sync.
 export const ENGLISH: string[] = [
-  // Verse 1
   "Shining with a brilliance all its own, you pass along the main avenue.",
   "People gather, drawn by the desire to see you;",
   "and there, I stand—lost among the crowd.",
+
   "You waved your hand.",
   "I waved back, and the excitement surged.",
   "You raised your voice.",
   "I listened in silence,",
   "hearing my own story echoed in your words.",
-  // Pre-chorus
+
   "Beyond the depths of all suffering and sorrow,",
   "I held fast to the belief that the person I aspire to be surely awaits me.",
+
   "My awakened heart begins to stir restlessly.",
   "Where is the future leading us?",
-  // Chorus 1
+
   "Even if I were to search this world to its very ends,",
   "I would find no answer to my questions.",
   "Neither foresight nor even memory itself",
@@ -43,25 +44,28 @@ export const ENGLISH: string[] = [
   "within this colorless world right before your eyes,",
   "perhaps, if you simply live—in your own unique way—",
   "the radiance you emit might be exactly what I've been searching for.",
-  // Post-chorus
+
   "I know the truth.",
   "The answer was there all along.",
   "Yet I'll pretend not to know it—and keep on running.",
-  // Bridge
-  "\"You can still go on!\" \"It's already over!\"",
-  "\"I have high hopes for you!\" \"You'll live to regret this!\"",
+
+  '"You can still go on!" "It\'s already over!"',
+  '"I have high hopes for you!" "You\'ll live to regret this!"',
   "Voices—forever parallel, never to meet—are screaming out.",
+
   "If you were in my shoes, what answer would you find?",
   "If I were in yours, I know I would surely lose my way.",
+
   "Every word spoken is merely a fragment—a scrap of someone's proof of existence—",
   "so why is my heart shaken so deeply?",
-  // Final chorus
+
   "Even if I were to search this world to its very ends,",
   "I would find no answer to my questions.",
   "Reaching out, straining my eyes, wandering aimlessly...",
   "within this colorless world that has now come into view,",
   "if you simply live—in your own unique way—",
   "perhaps that very existence will become the answer.",
+
   "I will keep going. I will not lose my way.",
   "I have high hopes. I will have no regrets.",
   "A voice—audible wherever I am—is screaming out.",

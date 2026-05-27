@@ -27,6 +27,12 @@ module.exports = (env, argv) => {
           use: ["style-loader", "css-loader"],
         },
         {
+          // Import .jsonc (JSON-with-comments) timing files as a raw string;
+          // parsed at runtime (see src/textalive/chorusTimings.ts).
+          test: /\.jsonc$/,
+          type: "asset/source",
+        },
+        {
           test: /\.(png|jpe?g|gif|svg|woff2?|ttf|otf)$/,
           type: "asset/resource",
         },
