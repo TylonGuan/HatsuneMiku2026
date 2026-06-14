@@ -8,10 +8,14 @@ import { Vector3 } from "three";
  * by the animation loop in <Lyrics />.
  */
 export interface CharDatum {
-  /** The kanji character itself (e.g. "教"). */
+  /** The character itself (e.g. "教", "し", "ピ"). */
   text: string;
-  /** Index of the phrase this character belongs to. */
+  /** Index of the phrase this character belongs to (0-based, song order). */
   phraseIndex: number;
+  /** Global word index this character belongs to (0-based across the whole song). */
+  wordIndex: number;
+  /** Global character index (0-based across the whole song). */
+  charIndex: number;
   /**
    * Milliseconds — when this character's *word* begins. Drives the reveal
    * lifecycle so a word's characters appear and leave together. The `sweep`
@@ -61,6 +65,9 @@ export interface PhraseDatum {
  * - `chars` — flat list of every individual kanji with 3D positions.
  * - `phrases` — the lines of the song, in order.
  * - `duration` — total song length.
+ * - `maxRowWidth` — widest phrase row in world units; used by the renderer to
+ *   shrink the whole line on narrow viewports so the side characters don't
+ *   fall off-screen.
  */
 export interface LyricData {
   /** Every individual kanji character across the whole song. */
@@ -69,4 +76,6 @@ export interface LyricData {
   phrases: PhraseDatum[];
   /** Total song duration in milliseconds. */
   duration: number;
+  /** World-units width of the widest phrase (for responsive scaling). */
+  maxRowWidth: number;
 }

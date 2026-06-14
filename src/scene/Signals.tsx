@@ -2,7 +2,15 @@ import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import type { MutableRefObject, RefObject } from "react";
 import type { Player } from "textalive-app-api";
-import { getBeatAmp, getProgress, getVocalAmp, isChorus } from "../textalive/analysis";
+import {
+  getBeatAmp,
+  getBeatPhase,
+  getPhrasePhase,
+  getProgress,
+  getVocalAmp,
+  getWordPhase,
+  isChorus,
+} from "../textalive/analysis";
 import { clamp01 } from "./color";
 
 // Per-frame signals shared by the whole scene.
@@ -10,14 +18,28 @@ export interface Signals {
   pos: number; // song position (ms)
   sat: number; // 0 (colorless) -> 1 (full color), follows song progress
   clim: number; // smoothed climax intensity (final chorus)
-  beat: number; // 0..1 beat pulse
+  beat: number; // 0..1 sharp pulse — peaks on each beat, decays fast
+  beatPhase: number; // 0..1 position within current beat; -1 if no beat data
+  wordPhase: number; // 0..1 position within current sung word; -1 if no word active
+  phrasePhase: number; // 0..1 position within current lyric phrase; -1 if no phrase active
   vocal: number; // 0..1 vocal amplitude
   chorus: boolean;
   playing: boolean;
 }
 
 export function createSignals(): Signals {
-  return { pos: 0, sat: 0, clim: 0, beat: 0, vocal: 0, chorus: false, playing: false };
+  return {
+    pos: 0,
+    sat: 0,
+    clim: 0,
+    beat: 0,
+    beatPhase: -1,
+    wordPhase: -1,
+    phrasePhase: -1,
+    vocal: 0,
+    chorus: false,
+    playing: false,
+  };
 }
 
 interface Props {
@@ -39,6 +61,9 @@ export function SignalsUpdater({ player, positionRef, isPlaying, signalsRef }: P
 
     if (!player || !player.video) {
       s.beat = Math.max(0, s.beat - 0.05);
+      s.beatPhase = -1;
+      s.wordPhase = -1;
+      s.phrasePhase = -1;
       return;
     }
 
@@ -61,6 +86,9 @@ export function SignalsUpdater({ player, positionRef, isPlaying, signalsRef }: P
     s.pos = pos;
     s.sat = clamp01(progress * 1.2);
     s.beat = getBeatAmp(player, pos);
+    s.beatPhase = getBeatPhase(player, pos);
+    s.wordPhase = getWordPhase(player, pos);
+    s.phrasePhase = getPhrasePhase(player, pos);
     s.vocal = getVocalAmp(player, pos);
     s.chorus = isChorus(player, pos);
 

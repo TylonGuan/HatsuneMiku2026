@@ -3,6 +3,7 @@ import type { MutableRefObject, RefObject } from "react";
 import { Player } from "textalive-app-api";
 import type { IPlayerApp, IVideo } from "textalive-app-api";
 import { ENGLISH, SONG, TEXTALIVE_TOKEN } from "../config";
+import type { SongConfig } from "../scene/lyrics/types";
 import { buildLyrics } from "./buildLyrics";
 import type { LyricData } from "./types";
 
@@ -38,6 +39,10 @@ export interface UsePlayerResult {
   status: PlayerStatus;
   /** True while the song is actively playing. */
   isPlaying: boolean;
+  /** True the moment the song naturally finished (onStop). Cleared on the next
+   *  user-initiated play. The UI uses this to bring the title card back instead
+   *  of the "Paused" overlay, so end-of-song feels like a clean reset. */
+  ended: boolean;
   /** The computed lyric data (char positions, phrases, timing), or null before ready. */
   lyrics: LyricData | null;
   /** English subtitle for the current phrase, or null outside any phrase. */
@@ -59,10 +64,14 @@ const DEFAULT_VOLUME = 20;
  * React hook that initialises the TextAlive Player, loads song data,
  * tracks playback state, and exposes controls to the rest of the app.
  */
-export function usePlayer(mediaRef: RefObject<HTMLElement>): UsePlayerResult {
+export function usePlayer(
+  mediaRef: RefObject<HTMLElement>,
+  song?: SongConfig,
+): UsePlayerResult {
   const [player, setPlayer] = useState<Player | null>(null);
   const [status, setStatus] = useState<PlayerStatus>("loading");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [ended, setEnded] = useState(false);
   const [lyrics, setLyrics] = useState<LyricData | null>(null);
   const [subtitle, setSubtitle] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
@@ -116,7 +125,7 @@ export function usePlayer(mediaRef: RefObject<HTMLElement>): UsePlayerResult {
       /** Lyric data loaded — build geometry. (Audio timer may still be loading.) */
       onVideoReady: (video: IVideo) => {
         if (!video.firstChar) return;
-        const data = buildLyrics(video);
+        const data = buildLyrics(video, song?.chorusTimings);
         lyricsRef.current = data;
         setLyrics(data);
         setDuration(video.duration);
@@ -154,11 +163,17 @@ export function usePlayer(mediaRef: RefObject<HTMLElement>): UsePlayerResult {
           return;
         }
         setIsPlaying(true);
+        // Clear the end-of-song flag so the title card hides again on replay.
+        setEnded(false);
       },
       // User/explicit pause — playhead stays put.
       onPause: () => setIsPlaying(false),
-      // Song reached the end — API auto-stops and rewinds.
-      onStop: () => setIsPlaying(false),
+      // Song reached the end — API auto-stops and rewinds. Mark `ended` so the
+      // UI swaps the "Paused" overlay for the title card on a clean reset.
+      onStop: () => {
+        setIsPlaying(false);
+        setEnded(true);
+      },
     });
 
     setPlayer(musicPlayer);
@@ -235,6 +250,7 @@ export function usePlayer(mediaRef: RefObject<HTMLElement>): UsePlayerResult {
     positionRef,
     status,
     isPlaying,
+    ended,
     lyrics,
     subtitle,
     duration,

@@ -1,7 +1,6 @@
 import { Vector3 } from "three";
 import type { IVideo, IPhrase, IWord, IChar } from "textalive-app-api";
-import { chorusTimingOverrides } from "./chorusTimings";
-import type { PhraseTimings } from "./chorusTimings";
+import type { PhraseTimings } from "../scene/lyrics/songs/answerMe/chorusTimings";
 import type { CharDatum, LyricData, PhraseDatum } from "./types";
 
 const SPACING = 0.7; // horizontal gap between settled characters
@@ -55,11 +54,24 @@ const overrideEnd = (ph: PhraseTimings) => {
   return lastWord[lastWord.length - 1].endTime;
 };
 
-// Convert TextAlive's loaded video into flat lyric data plus a per-character
-// "journey" (where each glyph flies in from, settles, and flies out to). Each
-// character also carries its *word* window so <Lyrics /> can reveal words as a
-// unit (Japanese has no spaces, so words are the natural grouping).
-export function buildLyrics(video: IVideo): LyricData {
+/**
+ * Convert TextAlive's loaded video into flat lyric data plus a per-character
+ * "journey" (where each glyph flies in from, settles, and flies out to).
+ *
+ * Each character carries its *word* window so <Lyrics /> can reveal words as a
+ * unit (Japanese has no spaces, so words are the natural grouping), and global
+ * `wordIndex`/`charIndex` so the SongConfig's per-word/per-char override maps
+ * can address it.
+ *
+ * @param video           TextAlive's loaded video object (phrases/words/chars).
+ * @param chorusTimings   Optional hand-corrected timings (phrase text → word×char times)
+ *                        for songs whose raw API timing is broken. Falls back to the
+ *                        API's reported times when absent.
+ */
+export function buildLyrics(
+  video: IVideo,
+  chorusTimings?: Map<string, PhraseTimings>,
+): LyricData {
   const rawPhrases = collect<IPhrase>(video.firstPhrase, video.lastPhrase);
 
   const chars: CharDatum[] = [];
@@ -67,12 +79,19 @@ export function buildLyrics(video: IVideo): LyricData {
   const matchedOverrides = new Set<string>();
   const laneFreeAt: number[] = []; // per lane: the time it becomes free for reuse
 
+  // Running global indices across the song (for SongConfig's word/char override maps).
+  let wordCounter = 0;
+  let charCounter = 0;
+  // Widest phrase row in world units — the renderer uses this to scale the
+  // whole line down on narrow viewports so side characters don't fall off.
+  let maxRowWidth = 0;
+
   rawPhrases.forEach((p, pi) => {
     // TextAlive groups Phrase → Word → Char; we walk words so timing can be
     // grouped per word, but lay characters out continuously (no word spacing).
     const words = collect<IWord>(p.firstWord, p.lastWord);
 
-    const override = chorusTimingOverrides.get(p.text);
+    const override = chorusTimings?.get(p.text);
     if (override) matchedOverrides.add(p.text);
 
     // Phrase-level window (corrected when available) — used for lane packing and
@@ -92,17 +111,19 @@ export function buildLyrics(video: IVideo): LyricData {
       laneFreeAt[lane] = gone;
     }
 
-    // Characters sit evenly across the whole phrase, so a global char index (ci)
-    // drives the horizontal position; the word only governs timing/grouping.
+    // Characters sit evenly across the whole phrase, so a phrase-local char index
+    // (ci) drives the horizontal position; the word only governs timing/grouping.
     const totalChars = words.reduce((n, w) => n + w.charCount, 0);
     const count = Math.max(1, totalChars);
     const rowLen = count * SPACING;
+    if (rowLen > maxRowWidth) maxRowWidth = rowLen;
 
     let ci = 0;
     words.forEach((w, wi) => {
       const wordOverride = override?.[wi];
       const wordStart = wordOverride ? wordOverride[0].startTime : w.startTime;
       const wordEnd = wordOverride ? wordOverride[wordOverride.length - 1].endTime : w.endTime;
+      const wordIndex = wordCounter++;
 
       collect<IChar>(w.firstChar, w.lastChar).forEach((c, k) => {
         const t = ci / Math.max(1, count - 1); // 0..1 across the phrase
@@ -111,6 +132,8 @@ export function buildLyrics(video: IVideo): LyricData {
         chars.push({
           text: c.text,
           phraseIndex: pi,
+          wordIndex,
+          charIndex: charCounter++,
           wordStart,
           wordEnd,
           charStart: charOverride?.startTime ?? c.startTime,
@@ -127,13 +150,13 @@ export function buildLyrics(video: IVideo): LyricData {
     phrases.push({ index: pi, text: p.text, startTime, endTime });
   });
 
-  if (process.env.NODE_ENV !== "production") {
-    for (const key of chorusTimingOverrides.keys()) {
+  if (process.env.NODE_ENV !== "production" && chorusTimings) {
+    for (const key of chorusTimings.keys()) {
       if (!matchedOverrides.has(key)) {
         console.warn(`[chorusTimings] no phrase matched override text: "${key}"`);
       }
     }
   }
 
-  return { chars, phrases, duration: video.duration };
+  return { chars, phrases, duration: video.duration, maxRowWidth };
 }

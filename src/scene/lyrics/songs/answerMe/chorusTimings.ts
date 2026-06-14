@@ -1,4 +1,4 @@
-import raw from "../../6W2N_chorus_timings.jsonc";
+import raw from "./timings.jsonc";
 
 // Hand-corrected timings for phrases whose TextAlive data is broken — the
 // pre-chorus lines around 52–66s otherwise collapse to ~1ms and overlap, so the
@@ -31,7 +31,7 @@ function parseJsonc(src: string): PhraseTimings[] {
   return JSON.parse(stripped);
 }
 
-// phrase text -> corrected word×char timings.
+/** phrase text → corrected word×char timings for this song. */
 export const chorusTimingOverrides: Map<string, PhraseTimings> = (() => {
   const map = new Map<string, PhraseTimings>();
   let blocks: PhraseTimings[];

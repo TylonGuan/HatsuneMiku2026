@@ -244,3 +244,20 @@ body,
 .paused.visible {
   opacity: 1;
 }
+
+/* ── Narrow viewport (phones in portrait) ─────────────────────────────────
+   The default layout puts .controls, .seekbar, and .skip in the same row at
+   `bottom: 16px`. Below ~600 px wide the centered seekbar's edge collides
+   with the left-anchored controls (seek bar shrinks to 46vw but the controls
+   cluster stays a fixed ~140 px). Stack the seekbar onto its own row above
+   the controls / skip row, widen it for thumb scrubbing, and push the
+   subtitle up so it still clears everything. */
+@media (max-width: 600px) {
+  .seekbar {
+    bottom: 64px;
+    width: min(85vw, 440px);
+  }
+  .subtitle {
+    bottom: 112px;
+  }
+}

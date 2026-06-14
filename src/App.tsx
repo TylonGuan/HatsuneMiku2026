@@ -1,16 +1,27 @@
 import { Canvas } from "@react-three/fiber";
 import { Leva } from "leva";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { MouseEvent, PointerEvent } from "react";
 import { Scene } from "./scene/Scene";
+import { answerMeSong } from "./scene/lyrics/songs/answerMe";
 import { Overlay } from "./ui/Overlay";
 import { usePlayer } from "./textalive/usePlayer";
+
+/**
+ * The active song's config (style overrides + timing corrections). Swap this
+ * one import to render a different song; `Lyrics.tsx` is song-agnostic and
+ * just consumes whatever SongConfig is handed to it.
+ */
+const currentSong = answerMeSong;
 
 /**
  * Minimum pointer movement (px) to qualify as a drag instead of a click.
  * Below this threshold the interaction is treated as a tap/click to toggle playback.
  */
 const DRAG_THRESHOLD = 6;
+
+/** Step (ms) for ←/→ keyboard seeks. */
+const KEY_SEEK_STEP_MS = 5000;
 
 /**
  * Root application component.
@@ -30,13 +41,43 @@ export function App() {
     positionRef,
     status,
     isPlaying,
+    ended,
     lyrics,
     subtitle,
     duration,
     volume,
     muted,
     controls,
-  } = usePlayer(mediaRef);
+  } = usePlayer(mediaRef, currentSong);
+
+  /**
+   * Global keyboard shortcuts. Active once the player is ready.
+   *   - Space        → play / pause
+   *   - ArrowLeft    → seek backward {@link KEY_SEEK_STEP_MS}
+   *   - ArrowRight   → seek forward {@link KEY_SEEK_STEP_MS}
+   *
+   * Suppressed while focus is in an `<input>` / `<textarea>` so the volume
+   * slider's native arrow stepping and seek bar's keyboard nav still work.
+   */
+  useEffect(() => {
+    if (status !== "ready") return;
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName ?? "").toUpperCase();
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.code === "Space" || e.key === " ") {
+        e.preventDefault(); // stop the page from scrolling on Space
+        controls.toggle();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        controls.seek(Math.max(0, positionRef.current - KEY_SEEK_STEP_MS));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        controls.seek(Math.min(duration, positionRef.current + KEY_SEEK_STEP_MS));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [status, controls, positionRef, duration]);
 
   /** Pointer position on pointerdown, used to detect drag distance on click. */
   const downPos = useRef<{ x: number; y: number } | null>(null);
@@ -80,7 +121,13 @@ export function App() {
       {/* Click/tap target that covers the entire 3D viewport. */}
       <div className="stage" onPointerDown={onPointerDown} onClick={onClick}>
         <Canvas camera={camera} dpr={[1, 2]} gl={{ antialias: true }}>
-          <Scene player={player} positionRef={positionRef} isPlaying={isPlaying} lyrics={lyrics} />
+          <Scene
+            player={player}
+            positionRef={positionRef}
+            isPlaying={isPlaying}
+            lyrics={lyrics}
+            song={currentSong}
+          />
         </Canvas>
       </div>
 
@@ -88,6 +135,7 @@ export function App() {
       <Overlay
         status={status}
         isPlaying={isPlaying}
+        ended={ended}
         subtitle={subtitle}
         positionRef={positionRef}
         duration={duration}

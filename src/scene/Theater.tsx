@@ -1,7 +1,6 @@
-import { useThree } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import { folder, useControls } from "leva";
-import { PerspectiveCamera, SRGBColorSpace } from "three";
+import { SRGBColorSpace } from "three";
 import type { Texture } from "three";
 
 import stageSpaceUrl from "../../art/Scene1/TheaterStageSpace.png";
@@ -28,8 +27,18 @@ const LAYERS = [
 ];
 
 const CAMERA_BASE_Z = 7; // keep in sync with CameraRig RADIUS/TARGET
-const MARGIN = 1.4; // oversize each plane so small camera moves never reveal edges
+const MARGIN = 1.4; // oversize each plane so camera moves / zoom-out never reveal edges
 const TINT = "#3d3947"; // dim the white paper to a moody, "colorless" theatre tone
+
+// ── Plane-sizing reference ───────────────────────────────────────────────────
+// Planes are sized at a FIXED reference FOV + aspect rather than the live ones,
+// so they don't shrink with the viewport. That gives the user "headroom" to
+// pinch/scroll zoom out (which widens the camera frustum) and reveal more of
+// each painting — without the planes shrinking to follow. The companion
+// {@link CameraRig} clamps the zoom-out FOV at the point where the frustum
+// would exceed plane size (i.e. the painting edges would become visible).
+const REFERENCE_FOV_DEG = 55;
+const REFERENCE_ASPECT = 16 / 9;
 
 // One leva folder per layer, each with x / y / z / scale sliders.
 const layerControls = Object.fromEntries(
@@ -68,12 +77,12 @@ function coverSize(
 
 export function Theater() {
   const textures = useTexture(LAYERS.map((l) => l.url)) as Texture[];
-  const { camera, size } = useThree();
   const ctrl = useControls("Theater layers", layerControls) as Record<string, number>;
 
-  const fovDeg = camera instanceof PerspectiveCamera ? camera.fov : 55;
-  const vFov = fovDeg * (Math.PI / 180);
-  const viewAspect = size.width / size.height;
+  // Fixed reference values — plane sizes are stable regardless of the actual
+  // camera FOV or window aspect. See REFERENCE_* constants above.
+  const vFov = REFERENCE_FOV_DEG * (Math.PI / 180);
+  const viewAspect = REFERENCE_ASPECT;
 
   const planes = LAYERS.map((layer, i) => {
     const tex = textures[i];
@@ -91,13 +100,14 @@ export function Theater() {
       {planes.map((p) => (
         <mesh key={p.name} position={[p.x, p.y, p.z]} renderOrder={p.order}>
           <planeGeometry args={[p.w, p.h]} />
-          <meshBasicMaterial
+          <meshPhongMaterial
             map={p.tex}
             transparent
             depthTest={false}
             depthWrite={false}
             color={TINT}
             toneMapped={false}
+            shininess={0}
           />
         </mesh>
       ))}

@@ -13,6 +13,9 @@ interface Props {
   status: PlayerStatus;
   /** Whether the song is playing (toggles the Paused overlay + subtitle visibility). */
   isPlaying: boolean;
+  /** True the moment the song finished naturally — brings the title card back
+   *  instead of the "Paused" overlay so end-of-song feels like a clean reset. */
+  ended: boolean;
   /** Translation for the current phrase, or null when no phrase is active. */
   subtitle: string | null;
   /** Live song position (ms), updated every frame *outside* React for the scrub bar. */
@@ -131,6 +134,7 @@ function SeekBar({
 export function Overlay({
   status,
   isPlaying,
+  ended,
   subtitle,
   positionRef,
   duration,
@@ -146,17 +150,25 @@ export function Overlay({
     if (isPlaying) setStarted(true);
   }, [isPlaying]);
 
+  /**
+   * The title card shows in two cases: (1) before the first play, (2) after the
+   * song finished. The "Paused" overlay shows only for an explicit mid-song
+   * pause — never at end-of-song, because the title card supersedes it.
+   */
+  const showTitle = !started || ended;
+  const showPaused = started && !isPlaying && !ended;
+
   const muteIcon = muted ? "🔇" : volume > 50 ? "🔊" : "🔉";
 
   return (
     <>
-      {/* Intro panel: song title + start hint, or a loading message. Hidden once started. */}
-      <div className={`info${started ? " hidden" : ""}`}>
+      {/* Intro panel: song title + start hint, or a loading message. */}
+      <div className={`info${showTitle ? "" : " hidden"}`}>
         {ready ? (
           <>
             <div className="title">{SONG.title}</div>
             <div className="artist">{SONG.artist}</div>
-            <div className="hint">Click anywhere to start</div>
+            <div className="hint">{ended ? "Click to play again" : "Click anywhere to start"}</div>
           </>
         ) : (
           <div className="loading">Loading song…</div>
@@ -192,7 +204,7 @@ export function Overlay({
       {/* Current phrase translation; only shown while actually playing. */}
       <div className={`subtitle${subtitle && isPlaying ? " visible" : ""}`}>{subtitle}</div>
 
-      <div className={`paused${started && !isPlaying ? " visible" : ""}`}>Paused</div>
+      <div className={`paused${showPaused ? " visible" : ""}`}>Paused</div>
     </>
   );
 }

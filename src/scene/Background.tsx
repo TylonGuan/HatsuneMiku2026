@@ -6,7 +6,6 @@ import {
   BufferAttribute,
   BufferGeometry,
   Fog,
-  PerspectiveCamera,
   Points,
   PointsMaterial,
 } from "three";
@@ -24,7 +23,7 @@ interface Props {
 export function Background({ signalsRef }: Props) {
   const pointsRef = useRef<Points>(null);
   const matRef = useRef<PointsMaterial>(null);
-  const { scene, gl, camera } = useThree();
+  const { scene, gl } = useThree();
 
   const { geometry, phases } = useMemo(() => {
     const positions = new Float32Array(PETAL_COUNT * 3);
@@ -43,7 +42,7 @@ export function Background({ signalsRef }: Props) {
   useFrame(({ clock }) => {
     const s = signalsRef.current;
     if (!s) return;
-    const { sat, clim, beat, playing } = s;
+    const { sat, clim } = s;
     const time = clock.elapsedTime;
 
     // Background fill: deep plum -> warmer, more saturated.
@@ -77,11 +76,6 @@ export function Background({ signalsRef }: Props) {
       scene.fog = null;
     }
 
-    // Subtle beat-driven breathing of the field of view.
-    if (camera instanceof PerspectiveCamera) {
-      camera.fov = 55 + (playing ? beat * 1.2 : 0);
-      camera.updateProjectionMatrix();
-    }
   });
 
   return (
