@@ -3,7 +3,7 @@ import type { IVideo, IPhrase, IWord, IChar } from "textalive-app-api";
 import type { PhraseTimings } from "../scene/lyrics/songs/answerMe/chorusTimings";
 import type { CharDatum, LyricData, PhraseDatum } from "./types";
 
-const SPACING = 0.7; // horizontal gap between settled characters
+const SPACING = 0.5; // horizontal gap between settled characters
 const LANE_GAP = 2.4; // vertical spacing between lanes of concurrent phrases
 // ms padding (~LEAD/TRAIL in Lyrics.tsx) used to decide if two phrases share the screen
 const OVERLAP_PAD = 1500;

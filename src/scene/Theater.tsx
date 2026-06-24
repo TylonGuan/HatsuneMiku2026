@@ -3,10 +3,12 @@ import { folder, useControls } from "leva";
 import { SRGBColorSpace } from "three";
 import type { Texture } from "three";
 
-import stageSpaceUrl from "../../art/Scene1/TheaterStageSpace.png";
+import backgroundMedieval from "../../art/Scene1/BackgroundMedieval.png";
+import stageSpace from "../../art/Scene1/TheaterStageSpace.png";
 import stageFloorUrl from "../../art/Scene1/TheaterStageFloor.png";
 import frameUrl from "../../art/Scene1/TheaterCurtainsprosceniumWindows.png";
 import seatsUrl from "../../art/Scene1/TheaterSeats.png";
+import { BACKGROUND_LIGHT_LAYER } from "./BackgroundLight";
 
 // All layers share one 3432x2429 canvas, so by default they overlay pixel-perfect.
 const IMG_ASPECT = 3432 / 2429; // ≈ 1.413
@@ -19,11 +21,15 @@ const IMG_ASPECT = 3432 / 2429; // ≈ 1.413
 //   z      depth: more negative = farther away (spread them out for more parallax)
 //   scale  size multiplier on top of the auto frame-fit (1 = fills the frame)
 //   order  paint order, must increase far → near (0,1,2,3)
+// `bgLit: true` opts a layer into the `BackgroundLight` render layer so the
+// two dedicated background spotlights illuminate it. Default `false` keeps a
+// layer on the main camera channel only.
 const LAYERS = [
-  { name: "stageSpace", url: stageSpaceUrl, x: 0, y: 0, z: -20, scale: 1, order: 0 }, // back wall (deepest)
-  { name: "stageFloor", url: stageFloorUrl, x: 0, y: 0, z: -15, scale: 1, order: 1 }, // raised stage / riser
-  { name: "frame", url: frameUrl, x: 0, y: 0, z: -8, scale: 1, order: 2 }, // proscenium + curtains + windows
-  { name: "seats", url: seatsUrl, x: 0, y: 1, z: -2, scale: 1, order: 3 }, // audience seats (nearest)
+  { name: "stageSpace", url: stageSpace, x: 0, y: -5, z: -32, scale: 0, order: -1, bgLit: false }, // back wall (deepest)
+  { name: "backgroundMedieval", url: backgroundMedieval, x: 0, y: 6, z: -20 , scale: 0.5, order: 1, bgLit: true }, // background painting — receives the dedicated stage-wash lights
+  { name: "stageFloor", url: stageFloorUrl, x: 0, y: -1, z: -15, scale: 1, order: 1, bgLit: false }, // raised stage / riser
+  { name: "frame", url: frameUrl, x: 0, y: 0, z: -8, scale: 1, order: 2, bgLit: false }, // proscenium + curtains + windows
+  { name: "seats", url: seatsUrl, x: 0, y: 1, z: -2, scale: 1, order: 3, bgLit: false }, // audience seats (nearest)
 ];
 
 const CAMERA_BASE_Z = 7; // keep in sync with CameraRig RADIUS/TARGET
@@ -92,13 +98,34 @@ export function Theater() {
     const z = ctrl[`${layer.name}-z`];
     const scale = ctrl[`${layer.name}-scale`];
     const [w, h] = coverSize(CAMERA_BASE_Z - z, x, y, scale, vFov, viewAspect);
-    return { tex, w, h, x, y, z, order: layer.order, name: layer.name };
+    return {
+      tex,
+      w,
+      h,
+      x,
+      y,
+      z,
+      order: layer.order,
+      name: layer.name,
+      bgLit: layer.bgLit,
+    };
   });
 
   return (
     <group>
       {planes.map((p) => (
-        <mesh key={p.name} position={[p.x, p.y, p.z]} renderOrder={p.order}>
+        <mesh
+          key={p.name}
+          position={[p.x, p.y, p.z]}
+          renderOrder={p.order}
+          // Opt the background-painting mesh into the dedicated background
+          // render layer so the two `BackgroundLight` spotlights illuminate it.
+          // `enable` is additive — layer 0 stays on so the main camera still
+          // renders the mesh.
+          ref={(m) => {
+            if (m && p.bgLit) m.layers.enable(BACKGROUND_LIGHT_LAYER);
+          }}
+        >
           <planeGeometry args={[p.w, p.h]} />
           <meshPhongMaterial
             map={p.tex}

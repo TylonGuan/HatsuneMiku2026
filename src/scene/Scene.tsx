@@ -5,6 +5,7 @@ import type { Player } from "textalive-app-api";
 import { CameraRig } from "./CameraRig";
 import { Theater } from "./Theater";
 import { Spotlight } from "./Spotlight";
+import { BackgroundLight } from "./BackgroundLight";
 import { Miku } from "./Miku";
 import { Lyrics } from "./Lyrics";
 import { createSignals, SignalsUpdater } from "./Signals";
@@ -43,6 +44,7 @@ export function Scene({ player, positionRef, isPlaying, lyrics, song }: Props) {
       <Background signalsRef={signalsRef} />
       <Theater />
       <Spotlight signalsRef={signalsRef} />
+      <BackgroundLight />
       <Miku signalsRef={signalsRef} lyrics={lyrics} />
       {lyrics && <Lyrics lyrics={lyrics} signalsRef={signalsRef} song={song} />}
 

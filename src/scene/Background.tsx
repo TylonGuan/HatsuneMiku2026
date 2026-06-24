@@ -5,7 +5,6 @@ import {
   AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
-  Fog,
   Points,
   PointsMaterial,
 } from "three";
@@ -23,7 +22,7 @@ interface Props {
 export function Background({ signalsRef }: Props) {
   const pointsRef = useRef<Points>(null);
   const matRef = useRef<PointsMaterial>(null);
-  const { scene, gl } = useThree();
+  const { gl } = useThree();
 
   const { geometry, phases } = useMemo(() => {
     const positions = new Float32Array(PETAL_COUNT * 3);
@@ -68,13 +67,13 @@ export function Background({ signalsRef }: Props) {
     }
 
     // Fog tightens during the climax for a more enveloping feel.
-    if (clim > 0.05) {
-      scene.fog = new Fog(hsl(25, 25, 8), 16 + clim * 14, 44);
-    } else if (sat > 0.3) {
-      scene.fog = new Fog(hsl(310 - sat * 20, 8 + sat * 10, 5 + sat * 2), 22, 48);
-    } else {
-      scene.fog = null;
-    }
+    // if (clim > 0.05) {
+    //   scene.fog = new Fog(hsl(25, 25, 8), 16 + clim * 14, 44);
+    // } else if (sat > 0.3) {
+    //   scene.fog = new Fog(hsl(310 - sat * 20, 8 + sat * 10, 5 + sat * 2), 22, 48);
+    // } else {
+    //   scene.fog = null;
+    // }
 
   });
 

@@ -17,7 +17,7 @@ export const lyricsDefaults: LyricDefaults = {
   settleZ: 0,
 
   // Global size multiplier.
-  scale: 1,
+  scale: 1.5,
 
   // Default motion style while a glyph is settled / exiting.
   anim: "default",

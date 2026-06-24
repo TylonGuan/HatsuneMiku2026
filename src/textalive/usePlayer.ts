@@ -86,6 +86,15 @@ export function usePlayer(
   const lyricsRef = useRef<LyricData | null>(null);
   /** Key of the phrase indices currently shown, so we only setSubtitle on changes. */
   const lastSubtitleKeyRef = useRef("");
+  /** Song duration cached for use inside event-listener closures (`duration`
+   *  state is captured stale by the listeners registered in the mount effect). */
+  const durationRef = useRef(0);
+  /** Highest playback position observed during the current play-through. When
+   *  the song reaches its natural end TextAlive's `onPause` fires (NOT
+   *  `onStop` — that one is unreliable for audio-runout). Comparing this peak
+   *  against {@link durationRef} on pause lets us distinguish "song ended" from
+   *  "user paused mid-song." Reset on every fresh play (via `onPlay`). */
+  const peakPosRef = useRef(0);
   /**
    * The TextAlive API auto-plays when the video loads.
    * We suppress that until the user explicitly clicks.
@@ -129,6 +138,7 @@ export function usePlayer(
         lyricsRef.current = data;
         setLyrics(data);
         setDuration(video.duration);
+        durationRef.current = video.duration;
         videoLoaded = true;
         markReadyWhenLoaded();
       },
@@ -148,6 +158,8 @@ export function usePlayer(
         const data = lyricsRef.current;
         if (!data) return;
         const position = positionRef.current;
+        // Track peak — used by `onPause` to distinguish song-end from user-pause.
+        if (position > peakPosRef.current) peakPosRef.current = position;
         const active = data.phrases.filter((p) => position >= p.startTime && position < p.endTime);
         const key = active.map((p) => p.index).join(",");
         if (key !== lastSubtitleKeyRef.current) {
@@ -163,13 +175,24 @@ export function usePlayer(
           return;
         }
         setIsPlaying(true);
-        // Clear the end-of-song flag so the title card hides again on replay.
+        // Fresh play — clear end-of-song flag and reset the peak so a future
+        // `onPause` only counts as "ended" if we actually got back to the end.
         setEnded(false);
+        peakPosRef.current = 0;
       },
-      // User/explicit pause — playhead stays put.
-      onPause: () => setIsPlaying(false),
-      // Song reached the end — API auto-stops and rewinds. Mark `ended` so the
-      // UI swaps the "Paused" overlay for the title card on a clean reset.
+      // Pause event: covers BOTH user-initiated pause and natural song-end.
+      // We distinguish them by checking whether the peak position we observed
+      // during this play-through is essentially at the song's duration. The
+      // 500 ms slack absorbs audio-buffer rounding (the element usually stops
+      // a few ms short of `duration`).
+      onPause: () => {
+        setIsPlaying(false);
+        if (durationRef.current > 0 && peakPosRef.current >= durationRef.current - 500) {
+          setEnded(true);
+        }
+      },
+      // Some TextAlive releases also fire `onStop` on natural end. Belt and
+      // suspenders — handle it the same way as a song-end pause.
       onStop: () => {
         setIsPlaying(false);
         setEnded(true);

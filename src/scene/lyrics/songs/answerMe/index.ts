@@ -16,7 +16,7 @@ import { chorusTimingOverrides } from "./chorusTimings";
 // per voice so the cascade can apply them uniformly.
 
 /** #86cecb — Miku's signature teal. Used for every line by default. */
-const MIKU_TEAL: ColorPoint = { hue: 178, saturation: 42, lightness: 67 };
+const MIKU_TEAL: ColorPoint = { hue: 178, saturation: 60, lightness: 67 };
 
 /** #ffb7c5 — soft pink for the chorus voices (the other Cryptons). Applied
  *  per-phrase to the lines they actually sing. */
@@ -42,7 +42,6 @@ export const answerMeSong: SongConfig = {
   // the index of any line you want to tune.
   phraseOverrides: {
     // ── Intro ──
-    0: { anim: "float-up", scale: 0.8 },
 
     // ── Chorus (the two phrases in `chorusTimings.ts` / `timings.jsonc`) ──
     // These are sung by the harmony voices (Rin/Len/Meiko/Kaito/Luka), so they

@@ -1,8 +1,15 @@
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { folder, useControls } from "leva";
 import { useEffect, useMemo } from "react";
 import type { RefObject } from "react";
-import { AdditiveBlending, Color, Group, Sprite, SpriteMaterial } from "three";
+import {
+  AdditiveBlending,
+  Color,
+  Group,
+  PerspectiveCamera,
+  Sprite,
+  SpriteMaterial,
+} from "three";
 import { charTexture } from "./textTexture";
 import { hsl } from "./color";
 import { lyricsDefaults } from "./lyrics/defaults";
@@ -20,8 +27,108 @@ const TRAIL = 1500;
 /** Multiplier on top of all scale calculations. */
 const BASE_SCALE = 0.9;
 
+// ── Viewport-aware multi-line wrap ───────────────────────────────────────────
+/** World Z where characters settle. Mirrors `LYRIC_Z` in `buildLyrics.ts`. */
+const SETTLE_Z = -3;
+/** Horizontal gap between adjacent characters. MUST mirror `SPACING` in
+ *  `buildLyrics.ts` — we use it to compute word widths for wrap decisions. */
+const SPACING = 0.7;
+/** Vertical gap between wrapped lines within one phrase. Smaller than the
+ *  parallel-voice `LANE_GAP` (2.4 in buildLyrics) so wrapped lines stay
+ *  visually grouped as one phrase. */
+const LINE_HEIGHT = 1.2;
+/** Fraction of visible width used for the lyric block — the rest is side
+ *  margin so glyphs don't kiss the screen edges. */
+const SIDE_MARGIN = 0.9;
+/** Reference FOV used to compute the wrap target width. Independent of the
+ *  live camera FOV so user zoom doesn't trigger re-wrap (which would feel
+ *  jarring). Matches the reference FOV in Theater.tsx. */
+const REFERENCE_FOV_DEG = 55;
+
 /** Smooth Hermite interpolation: 0 → 1 with easing at both ends. */
 const smoothstep = (u: number): number => u * u * (3 - 2 * u);
+
+/**
+ * For each phrase, greedy-wrap its words onto multiple lines so no line
+ * exceeds `maxLineWidth`. Returns a per-charIndex override of `{x, y}` for the
+ * settled position. Phrases whose original row already fits within
+ * `maxLineWidth` are skipped entirely (`computePosition` falls back to each
+ * glyph's baked `settle` in that case).
+ *
+ * Word-aware: line breaks only fall at word boundaries (`wordIndex` change),
+ * never mid-word — important for Japanese where words have no spaces.
+ *
+ * If a single word is itself wider than `maxLineWidth`, it still occupies its
+ * own line as a unit and overflows; readability beats wrapping mid-word.
+ */
+function buildWrapLayout(
+  chars: CharDatum[],
+  maxLineWidth: number,
+): Map<number, { x: number; y: number }> {
+  const out = new Map<number, { x: number; y: number }>();
+  if (maxLineWidth <= 0 || chars.length === 0) return out;
+
+  // Bucket chars by phrase.
+  const byPhrase = new Map<number, CharDatum[]>();
+  for (const c of chars) {
+    const arr = byPhrase.get(c.phraseIndex);
+    if (arr) arr.push(c);
+    else byPhrase.set(c.phraseIndex, [c]);
+  }
+
+  for (const phraseChars of byPhrase.values()) {
+    // Skip if the whole phrase already fits — keep the baked layout.
+    if (phraseChars.length * SPACING <= maxLineWidth) continue;
+
+    // Group consecutive chars into words (chars share a wordIndex within a word).
+    const words: CharDatum[][] = [];
+    let cur: CharDatum[] = [];
+    let curWord = -1;
+    for (const c of phraseChars) {
+      if (c.wordIndex !== curWord) {
+        if (cur.length) words.push(cur);
+        cur = [];
+        curWord = c.wordIndex;
+      }
+      cur.push(c);
+    }
+    if (cur.length) words.push(cur);
+
+    // Greedy wrap: pack words into lines.
+    const lines: CharDatum[][] = [];
+    let line: CharDatum[] = [];
+    let lineWidth = 0;
+    for (const word of words) {
+      const w = word.length * SPACING;
+      if (line.length > 0 && lineWidth + w > maxLineWidth) {
+        lines.push(line);
+        line = [];
+        lineWidth = 0;
+      }
+      line.push(...word);
+      lineWidth += w;
+    }
+    if (line.length) lines.push(line);
+
+    // Center the multi-line block on the phrase's original settle Y so lane
+    // assignment (parallel-voice phrases at different LANE_GAPs) still applies.
+    const baseY = phraseChars[0].settle.y;
+    const numLines = lines.length;
+
+    lines.forEach((lineChars, li) => {
+      const w = lineChars.length * SPACING;
+      const startX = -w / 2;
+      // Line 0 sits highest; bottom line lowest. Block is centered on baseY.
+      const yOffset = ((numLines - 1) / 2 - li) * LINE_HEIGHT;
+      const y = baseY + yOffset;
+      lineChars.forEach((c, ci) => {
+        out.set(c.charIndex, { x: startX + (ci + 0.5) * SPACING, y });
+      });
+    });
+  }
+
+  return out;
+}
 
 // ─── Per-frame state for one character sprite ────────────────────────────────
 
@@ -111,35 +218,40 @@ function computePosition(
   progress: number,
   resolved: ResolvedStyle,
   time: number,
+  settleOverride?: { x: number; y: number },
 ): { x: number; y: number; z: number } {
   const { anim } = resolved;
+  // Override the baked settle X/Y when multi-line wrap reassigned this glyph
+  // to a different line; Z is never wrap-modified.
+  const settleX = settleOverride?.x ?? glyph.settle.x;
+  const settleY = settleOverride?.y ?? glyph.settle.y;
   let bx: number;
   let by: number;
   let bz: number;
 
   if (progress < 0.35) {
-    // Phase 1 — fly in from entry to the settle position.
+    // Phase 1 — fly in from entry to the (possibly wrap-overridden) settle.
     const e = smoothstep(progress / 0.35);
-    bx = glyph.entry.x + (glyph.settle.x - glyph.entry.x) * e;
-    by = glyph.entry.y + (glyph.settle.y - glyph.entry.y) * e;
+    bx = glyph.entry.x + (settleX - glyph.entry.x) * e;
+    by = glyph.entry.y + (settleY - glyph.entry.y) * e;
     bz = glyph.entry.z + (glyph.settle.z - glyph.entry.z) * e;
   } else if (progress < 0.65) {
     // Phase 2 — settled. Gentle resting wobble plus optional anim motion.
     const u = (progress - 0.35) / 0.3;
-    bx = glyph.settle.x + Math.sin(u * Math.PI * 2) * 0.1;
-    by = glyph.settle.y + Math.sin(u * Math.PI) * 0.05;
+    bx = settleX + Math.sin(u * Math.PI * 2) * 0.1;
+    by = settleY + Math.sin(u * Math.PI) * 0.05;
     bz = glyph.settle.z;
     if (anim === "float-up") by += u * 0.8; // slowly rises while on screen
   } else {
     // Phase 3 — fly out, *starting from where settle actually ended*.
-    // The settle phase can leave the glyph offset from `glyph.settle` (e.g.
+    // The settle phase can leave the glyph offset from `settleX/Y` (e.g.
     // "float-up" adds u*0.8 by u=1). Without carrying that offset into the
-    // exit's starting point, the position would snap back to `glyph.settle`
-    // before lerping toward `glyph.exit`. Match the settle code's end-of-u=1
-    // values here so position is continuous across the boundary.
+    // exit's starting point, the position would snap back to the settle
+    // base before lerping toward `glyph.exit`. Match the settle code's
+    // end-of-u=1 values here so position is continuous across the boundary.
     const e = smoothstep((progress - 0.65) / 0.35);
-    const settleEndX = glyph.settle.x; // matches sin(2π)*0.1 = 0
-    const settleEndY = glyph.settle.y + (anim === "float-up" ? 0.8 : 0); // float-up's u=1 offset
+    const settleEndX = settleX; // matches sin(2π)*0.1 = 0
+    const settleEndY = settleY + (anim === "float-up" ? 0.8 : 0); // float-up's u=1 offset
     const settleEndZ = glyph.settle.z;
     bx = settleEndX + (glyph.exit.x - settleEndX) * e;
     by = settleEndY + (glyph.exit.y - settleEndY) * e;
@@ -282,6 +394,24 @@ interface Props {
  * sprites and orchestrates them.
  */
 export function Lyrics({ lyrics, signalsRef, song }: Props) {
+  // ---- Viewport-aware word-wrap layout ----
+  // Recompute per-glyph settle (x, y) overrides whenever the window resizes.
+  // Wrap target width is the visible width at SETTLE_Z, measured at the
+  // REFERENCE FOV — so user zoom doesn't trigger a re-wrap (which would be
+  // jarring). Phrases that fit within the line cap aren't overridden and use
+  // their baked single-line layout from `buildLyrics`.
+  const { size, camera } = useThree();
+  const wrapLayout = useMemo(() => {
+    if (!(camera instanceof PerspectiveCamera)) {
+      return new Map<number, { x: number; y: number }>();
+    }
+    const distance = camera.position.z - SETTLE_Z;
+    const refFovRad = (REFERENCE_FOV_DEG * Math.PI) / 180;
+    const visibleH = 2 * distance * Math.tan(refFovRad / 2);
+    const visibleW = visibleH * (size.width / size.height);
+    return buildWrapLayout(lyrics.chars, visibleW * SIDE_MARGIN);
+  }, [lyrics.chars, size.width, size.height, camera]);
+
   // ---- Build sprites once when lyrics data changes ----
   const { group, items } = useMemo(() => {
     const g = new Group();
@@ -330,7 +460,7 @@ export function Lyrics({ lyrics, signalsRef, song }: Props) {
     colorTo: song.defaults?.colorTo ?? lyricsDefaults.colorTo,
   };
   const live = useControls("Lyrics", {
-    sweep: { value: 0.25, min: 0, max: 1, step: 0.01, label: "word sweep" },
+    sweep: { value: 0.5, min: 0, max: 1, step: 0.01, label: "word sweep" },
     settleY: { value: initial.settleY, min: -10, max: 5, step: 0.01 },
     settleZ: { value: initial.settleZ, min: -10, max: 5, step: 0.01 },
     scale: { value: initial.scale, min: 0.2, max: 3, step: 0.01 },
@@ -392,7 +522,8 @@ export function Lyrics({ lyrics, signalsRef, song }: Props) {
       it.sprite.visible = true;
 
       const resolved = resolveStyle(lyricsDefaults, liveSong, glyph);
-      const xyz = computePosition(glyph, lc.progress, resolved, time);
+      const settleOverride = wrapLayout.get(glyph.charIndex);
+      const xyz = computePosition(glyph, lc.progress, resolved, time, settleOverride);
       it.sprite.position.set(xyz.x, xyz.y, xyz.z);
 
       const env = computeOpacityScale(lc.progress, s, resolved, lc.isActive);

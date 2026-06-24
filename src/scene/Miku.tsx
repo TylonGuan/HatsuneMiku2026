@@ -134,7 +134,7 @@ export function Miku({ signalsRef, lyrics }: Props) {
     transform: folder(
       {
         x: { value: 0, min: -10, max: 10, step: 0.05 },
-        y: { value: 2, min: -8, max: 8, step: 0.05 },
+        y: { value: 0.5, min: -8, max: 8, step: 0.05 },
         z: { value: -15, min: -15, max: -2, step: 0.1 },
         scale: { value: 9, min: 0.5, max: 12, step: 0.05 },
       },
