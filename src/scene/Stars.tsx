@@ -8,7 +8,7 @@ import type { Signals } from "./Signals";
 
 // How many stars in the field. Fixed (an InstancedMesh is allocated for this
 // count); it only updates while the climax is on screen, so it's cheap.
-const COUNT = 160;
+const COUNT = 50;
 
 const CAM_Z = 8; // camera z (matches App's camera) — used to size the spawn width per depth
 // Foreground slab the stars fall through. All in FRONT of the seats (z=-2), so
