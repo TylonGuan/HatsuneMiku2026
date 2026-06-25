@@ -104,6 +104,7 @@ body,
   backdrop-filter: blur(8px);
   border-radius: 999px;
   opacity: 0;
+  pointer-events: none;
   transform: translateY(8px);
   transition:
     opacity 0.5s ease,
@@ -112,7 +113,59 @@ body,
 
 .controls.visible {
   opacity: 1;
+  pointer-events: auto;
   transform: translateY(0);
+}
+
+/* Show / hide controls handle — a small triangle tab at the bottom center. */
+.ui-toggle {
+  position: fixed;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%) translateY(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 11px;
+  background: var(--ui-bg);
+  backdrop-filter: blur(8px);
+  color: var(--ui-fg);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.5s ease,
+    transform 0.5s ease,
+    background 0.15s ease;
+}
+
+.ui-toggle.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.ui-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* CSS triangle, pointing up by default ("raise the UI"); rotates to point
+   down when the UI is open ("lower it"). */
+.ui-toggle-tri {
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 8px solid var(--ui-fg);
+  transition: transform 0.3s ease;
+}
+
+.ui-toggle.open .ui-toggle-tri {
+  transform: rotate(180deg);
 }
 
 .btn {
@@ -141,11 +194,12 @@ body,
   cursor: pointer;
 }
 
-/* Scrub / seek bar, bottom center */
+/* Scrub / seek bar, bottom center. Lifted above the bottom-center triangle
+   handle (which sits at bottom: 10px) so the two don't overlap. */
 .seekbar {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  bottom: 40px;
   transform: translateX(-50%) translateY(8px);
   display: flex;
   align-items: center;
@@ -188,6 +242,7 @@ body,
   right: 16px;
   bottom: 16px;
   opacity: 0;
+  pointer-events: none;
   transform: translateY(8px);
   transition:
     opacity 0.5s ease,
@@ -198,6 +253,7 @@ body,
 
 .skip.visible {
   opacity: 1;
+  pointer-events: auto;
   transform: translateY(0);
 }
 

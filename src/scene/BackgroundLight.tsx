@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useThree } from "@react-three/fiber";
+import type { RefObject } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import { folder, useControls } from "leva";
 import { Object3D } from "three";
 import type { SpotLight as ThreeSpotLight } from "three";
+import type { Signals } from "./Signals";
 
 /**
  * Three.js render-layer index that the background lights illuminate.
@@ -18,6 +20,9 @@ import type { SpotLight as ThreeSpotLight } from "three";
  * it doesn't replace the default.
  */
 export const BACKGROUND_LIGHT_LAYER = 1;
+
+/** Seconds for the background lights to fade out when the song finishes. */
+const FADE_OUT_SECONDS = 2.0;
 
 /**
  * A pair of stage-wash spotlights aimed at the background painting from
@@ -36,13 +41,19 @@ export const BACKGROUND_LIGHT_LAYER = 1;
  *
  * Tune via the "Background lights" leva folder.
  */
-export function BackgroundLight() {
+interface Props {
+  signalsRef: RefObject<Signals>;
+}
+
+export function BackgroundLight({ signalsRef }: Props) {
   /** Aim points — three.js SpotLight semantics require a separate Object3D. */
   const targetLeft = useMemo(() => new Object3D(), []);
   const targetRight = useMemo(() => new Object3D(), []);
   /** Light refs so we can pin their render layer once on mount. */
   const lightLeftRef = useRef<ThreeSpotLight>(null);
   const lightRightRef = useRef<ThreeSpotLight>(null);
+  /** 0..1 brightness multiplier; drops to 0 when the song ends (blackout). */
+  const fadeRef = useRef(1);
   /** Camera — its layer mask must intersect the lights' layer mask, otherwise
    *  three.js's `WebGLRenderer.projectObject` skips the lights entirely (they
    *  never get added to the renderer's per-mesh light list). Default camera
@@ -117,6 +128,17 @@ export function BackgroundLight() {
     lightLeftRef.current?.layers.set(BACKGROUND_LIGHT_LAYER);
     lightRightRef.current?.layers.set(BACKGROUND_LIGHT_LAYER);
   }, [camera]);
+
+  // Fade the lights to black when the song ends, back up on a fresh play. The
+  // intensity prop below seeds the initial value; this drives it each frame.
+  useFrame((_, dt) => {
+    const target = signalsRef.current?.ended ? 0 : 1;
+    const dir = Math.sign(target - fadeRef.current);
+    fadeRef.current = Math.min(1, Math.max(0, fadeRef.current + (dir * dt) / FADE_OUT_SECONDS));
+    const lit = intensity * fadeRef.current;
+    if (lightLeftRef.current) lightLeftRef.current.intensity = lit;
+    if (lightRightRef.current) lightRightRef.current.intensity = lit;
+  });
 
   return (
     <>

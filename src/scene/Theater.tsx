@@ -27,7 +27,7 @@ const IMG_ASPECT = 3432 / 2429; // ≈ 1.413
 const LAYERS = [
   { name: "stageSpace", url: stageSpace, x: 0, y: -5, z: -32, scale: 0, order: -1, bgLit: false }, // back wall (deepest)
   { name: "backgroundMedieval", url: backgroundMedieval, x: 0, y: 6, z: -20 , scale: 0.5, order: 1, bgLit: true }, // background painting — receives the dedicated stage-wash lights
-  { name: "stageFloor", url: stageFloorUrl, x: 0, y: -1, z: -15, scale: 1, order: 1, bgLit: false }, // raised stage / riser
+  { name: "stageFloor", url: stageFloorUrl, x: 0, y: -1, z: -15, scale: 1.2, order: 1, bgLit: false }, // raised stage / riser
   { name: "frame", url: frameUrl, x: 0, y: 0, z: -8, scale: 1, order: 2, bgLit: false }, // proscenium + curtains + windows
   { name: "seats", url: seatsUrl, x: 0, y: 1, z: -2, scale: 1, order: 3, bgLit: false }, // audience seats (nearest)
 ];

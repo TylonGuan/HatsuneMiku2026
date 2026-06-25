@@ -22,6 +22,20 @@ const MIKU_TEAL: ColorPoint = { hue: 178, saturation: 60, lightness: 67 };
  *  per-phrase to the lines they actually sing. */
 const CHORUS_PINK: ColorPoint = { hue: 348, saturation: 100, lightness: 86 };
 
+// ── Chorus-voice phrases ─────────────────────────────────────────────────────
+// The phrases the other Cryptons sing (Miku takes everything else). This single
+// list is the source of truth: each phrase here is coloured pink in the lyrics
+// AND makes the on-stage chorus characters bob/sway while it plays. To add the
+// back-and-forth call-and-response (or any team line), just add its phrase index.
+//   8: どれほどの苦しみも悲しみの向こうに
+//   9: きっと私の目指す私がいると信じ続けていた
+const CHORUS_VOICE_PHRASES = [8, 9];
+
+/** Pink colour overrides generated from {@link CHORUS_VOICE_PHRASES}. */
+const chorusPinkOverrides = Object.fromEntries(
+  CHORUS_VOICE_PHRASES.map((i) => [i, { colorFrom: CHORUS_PINK, colorTo: CHORUS_PINK }]),
+);
+
 export const answerMeSong: SongConfig = {
   // ── Song-wide style ────────────────────────────────────────────────────────
   // Override only the fields that differ from the global defaults; the rest
@@ -39,18 +53,14 @@ export const answerMeSong: SongConfig = {
 
   // ── Per-phrase overrides (key = 0-based phraseIndex in song order) ─────────
   // Use a temp console.log in Lyrics.tsx to print `phraseIndex: text` and find
-  // the index of any line you want to tune.
+  // the index of any line you want to tune. The chorus-voice pink lines are
+  // merged in from CHORUS_VOICE_PHRASES above; add any other manual tweaks here.
   phraseOverrides: {
-    // ── Intro ──
-
-    // ── Chorus (the two phrases in `chorusTimings.ts` / `timings.jsonc`) ──
-    // These are sung by the harmony voices (Rin/Len/Meiko/Kaito/Luka), so they
-    // get the pink chorus colour instead of Miku's teal.
-    //   8: どれほどの苦しみも悲しみの向こうに
-    //   9: きっと私の目指す私がいると信じ続けていた
-    8: { colorFrom: CHORUS_PINK, colorTo: CHORUS_PINK },
-    9: { colorFrom: CHORUS_PINK, colorTo: CHORUS_PINK },
+    ...chorusPinkOverrides,
   },
+
+  // Phrases the chorus voices sing — pink lyrics + on-stage characters animate.
+  chorusVoicePhrases: CHORUS_VOICE_PHRASES,
 
   // ── Per-word overrides (key = 0-based global wordIndex) ────────────────────
   // Reserved for fine-grained emphasis like a single word flashing a colour.

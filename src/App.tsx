@@ -56,21 +56,28 @@ export function App() {
    *   - ArrowLeft    → seek backward {@link KEY_SEEK_STEP_MS}
    *   - ArrowRight   → seek forward {@link KEY_SEEK_STEP_MS}
    *
-   * Suppressed while focus is in an `<input>` / `<textarea>` so the volume
-   * slider's native arrow stepping and seek bar's keyboard nav still work.
+   * Space is suppressed while a form field is focused so it can interact with
+   * the control. The ←/→ seek is suppressed only for the **volume** slider (so
+   * its native value-stepping still works) — the seek bar keeps the ±step seek
+   * instead of nudging its own 100 ms step, which is what the user expects.
    */
   useEffect(() => {
     if (status !== "ready") return;
     const onKey = (e: KeyboardEvent) => {
-      const tag = (document.activeElement?.tagName ?? "").toUpperCase();
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const el = document.activeElement as HTMLElement | null;
+      const tag = (el?.tagName ?? "").toUpperCase();
+      const isFormField = tag === "INPUT" || tag === "TEXTAREA";
+      const isVolumeSlider = !!el?.classList.contains("volume");
       if (e.code === "Space" || e.key === " ") {
+        if (isFormField) return; // let Space interact with the focused control
         e.preventDefault(); // stop the page from scrolling on Space
         controls.toggle();
       } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
+        if (isVolumeSlider) return; // volume keeps native stepping
+        e.preventDefault(); // also overrides the seek bar's native 100 ms step
         controls.seek(Math.max(0, positionRef.current - KEY_SEEK_STEP_MS));
       } else if (e.key === "ArrowRight") {
+        if (isVolumeSlider) return;
         e.preventDefault();
         controls.seek(Math.min(duration, positionRef.current + KEY_SEEK_STEP_MS));
       }
@@ -125,6 +132,7 @@ export function App() {
             player={player}
             positionRef={positionRef}
             isPlaying={isPlaying}
+            ended={ended}
             lyrics={lyrics}
             song={currentSong}
           />

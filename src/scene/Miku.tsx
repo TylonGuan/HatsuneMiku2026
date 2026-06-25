@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
@@ -10,6 +10,7 @@ import mikuHoldUrl from "../../art/MikuCutout/Miku Hold.png";
 import mikuWaveUrl from "../../art/MikuCutout/Miku Wave.png";
 import type { LyricData } from "../textalive/types";
 import type { Signals } from "./Signals";
+import type { SongConfig } from "./lyrics/types";
 
 // Sprites are 4032 × 3024 (4:3) — Miku is cutout-centered with transparent
 // surroundings, so the plane stays 4:3 and the alpha channel does the framing.
@@ -63,7 +64,7 @@ const smoothstep = (t: number): number => t * t * (3 - 2 * t);
  * in another {@link BOB_RISE_FALL_MS}. Returns 0 at both endpoints, guaranteeing
  * smooth continuity into and out of any neighbouring char or gap.
  */
-function pulseShape(phase: number, durationMs: number): number {
+export function pulseShape(phase: number, durationMs: number): number {
   const rfFrac = Math.min(0.4, BOB_RISE_FALL_MS / Math.max(1, durationMs));
   if (phase < rfFrac) return smoothstep(phase / rfFrac);
   if (phase > 1 - rfFrac) return smoothstep((1 - phase) / rfFrac);
@@ -71,7 +72,7 @@ function pulseShape(phase: number, durationMs: number): number {
 }
 
 /** Linearly map char duration to a height multiplier, clamped. */
-function heightFactor(durationMs: number): number {
+export function heightFactor(durationMs: number): number {
   const f = durationMs / BOB_HEIGHT_NORMAL_MS;
   return Math.max(BOB_MIN_HEIGHT_FACTOR, Math.min(BOB_MAX_HEIGHT_FACTOR, f));
 }
@@ -82,6 +83,10 @@ interface Props {
    *  These timings reflect any per-song corrections (chorus overrides etc.) that
    *  the lyric display also uses, so her bob stays in sync with the visible text. */
   lyrics: LyricData | null;
+  /** Song config — supplies `chorusVoicePhrases` (the pink lines). Miku sings the
+   *  main vocal, so she skips her bob on those; the on-stage chorus characters
+   *  take them instead. */
+  song: SongConfig;
 }
 
 /**
@@ -122,19 +127,28 @@ interface Props {
  *   rotation/position are clamped to base so the two animations don't fight.
  *
  * Sits in scene-Z between the stage floor (z=-15) and the proscenium frame
- * (z=-8) by default. Render order 2.5 — between frame (2) and seats (3) — so
- * the audience never occludes her but the curtain frame still can.
+ * (z=-8) by default. Render order 1.8 — behind the curtains (1.9) and the
+ * proscenium frame (2), but in front of the background / stage floor (1). So a
+ * closed curtain fully hides her, and when it parts she's revealed framed by
+ * the proscenium opening.
  */
-export function Miku({ signalsRef, lyrics }: Props) {
+export function Miku({ signalsRef, lyrics, song }: Props) {
   const textures = useTexture(Object.values(POSES)) as Texture[];
   const poseUrls = Object.values(POSES);
+
+  // Phrases the chorus voices sing (the pink lines). Miku skips her bob on these
+  // so the on-stage chorus characters are clearly the ones singing them.
+  const chorusVoiceSet = useMemo(
+    () => new Set(song.chorusVoicePhrases ?? []),
+    [song.chorusVoicePhrases],
+  );
 
   const { pose, x, y, z, scale, tint } = useControls("Miku", {
     pose: { value: "hold" as Pose, options: Object.keys(POSES) as Pose[] },
     transform: folder(
       {
-        x: { value: 0, min: -10, max: 10, step: 0.05 },
-        y: { value: 0.5, min: -8, max: 8, step: 0.05 },
+        x: { value: 0.5, min: -10, max: 10, step: 0.05 },
+        y: { value: -0.25, min: -8, max: 8, step: 0.05 },
         z: { value: -15, min: -15, max: -2, step: 0.1 },
         scale: { value: 9, min: 0.5, max: 12, step: 0.05 },
       },
@@ -216,7 +230,8 @@ export function Miku({ signalsRef, lyrics }: Props) {
         while (idx + 1 < chars.length && chars[idx + 1].charStart <= s.pos) idx++;
         charIdxRef.current = idx;
         const c = chars[idx];
-        if (s.pos >= c.charStart && s.pos < c.charEnd) {
+        // Skip the chorus voices' lines (pink) — those are the team's to sing.
+        if (s.pos >= c.charStart && s.pos < c.charEnd && !chorusVoiceSet.has(c.phraseIndex)) {
           const durationMs = c.charEnd - c.charStart;
           const phase = (s.pos - c.charStart) / Math.max(1, durationMs);
           bob = pulseShape(phase, durationMs) * heightFactor(durationMs) * gain * BOB_AMPLITUDE;
@@ -235,7 +250,7 @@ export function Miku({ signalsRef, lyrics }: Props) {
   });
 
   return (
-    <mesh ref={meshRef} position={[x, y, z]} renderOrder={2.5}>
+    <mesh ref={meshRef} position={[x, y, z]} renderOrder={1.8}>
       <planeGeometry args={[w, h]} />
       <meshPhongMaterial
         map={tex}

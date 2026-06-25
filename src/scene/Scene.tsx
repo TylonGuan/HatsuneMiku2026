@@ -6,6 +6,9 @@ import { CameraRig } from "./CameraRig";
 import { Theater } from "./Theater";
 import { Spotlight } from "./Spotlight";
 import { BackgroundLight } from "./BackgroundLight";
+import { Curtains } from "./Curtains";
+import { Chorus } from "./Chorus";
+import { Stars } from "./Stars";
 import { Miku } from "./Miku";
 import { Lyrics } from "./Lyrics";
 import { createSignals, SignalsUpdater } from "./Signals";
@@ -18,11 +21,12 @@ interface Props {
   player: Player | null;
   positionRef: MutableRefObject<number>;
   isPlaying: boolean;
+  ended: boolean;
   lyrics: LyricData | null;
   song: SongConfig;
 }
 
-export function Scene({ player, positionRef, isPlaying, lyrics, song }: Props) {
+export function Scene({ player, positionRef, isPlaying, ended, lyrics, song }: Props) {
   const signalsRef = useRef<Signals>(createSignals());
 
   return (
@@ -33,6 +37,7 @@ export function Scene({ player, positionRef, isPlaying, lyrics, song }: Props) {
         player={player}
         positionRef={positionRef}
         isPlaying={isPlaying}
+        ended={ended}
         signalsRef={signalsRef}
       />
 
@@ -44,9 +49,12 @@ export function Scene({ player, positionRef, isPlaying, lyrics, song }: Props) {
       <Background signalsRef={signalsRef} />
       <Theater />
       <Spotlight signalsRef={signalsRef} />
-      <BackgroundLight />
-      <Miku signalsRef={signalsRef} lyrics={lyrics} />
+      <BackgroundLight signalsRef={signalsRef} />
+      <Chorus signalsRef={signalsRef} lyrics={lyrics} song={song} />
+      <Miku signalsRef={signalsRef} lyrics={lyrics} song={song} />
+      <Curtains signalsRef={signalsRef} />
       {lyrics && <Lyrics lyrics={lyrics} signalsRef={signalsRef} song={song} />}
+      <Stars signalsRef={signalsRef} />
 
       <EffectComposer>
         <Bloom intensity={0.9} luminanceThreshold={0.4} luminanceSmoothing={0.3} mipmapBlur />

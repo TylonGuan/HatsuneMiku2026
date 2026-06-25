@@ -8,6 +8,8 @@ import type { Signals } from "./Signals";
 
 /** Seconds for the spotlight to fade from black to full intensity on first play. */
 const FADE_IN_SECONDS = 2.5;
+/** Seconds for the spotlight to fade back out when the song finishes. */
+const FADE_OUT_SECONDS = 2.0;
 
 /**
  * Stage spotlight — a real three.js {@link SpotLight} positioned **behind and
@@ -34,8 +36,11 @@ const FADE_IN_SECONDS = 2.5;
  * The lamp starts at intensity 0 (dark theater). The first time playback ever
  * begins ({@link Signals.playing} flips true), we ease from 0 → user's
  * intensity slider value over {@link FADE_IN_SECONDS} with an `easeOutCubic`.
- * Once faded up it stays up — pause does *not* fade it back out, because
- * blinking the spotlight every time the user pauses would be jarring.
+ * It stays up through mid-song pauses — pause does *not* fade it back out,
+ * because blinking the spotlight every time the user pauses would be jarring.
+ * When the song *finishes* ({@link Signals.ended}) it fades back down to black
+ * over {@link FADE_OUT_SECONDS} for a "show's over" blackout; a fresh play
+ * (which clears `ended`) fades it up again.
  */
 interface Props {
   signalsRef: RefObject<Signals>;
@@ -78,7 +83,7 @@ export function Spotlight({ signalsRef }: Props) {
     // What the beam aims at. Default: stage centre, slightly above the floor.
     target: folder(
       {
-        targetX: { value: 0, min: -15, max: 15, step: 0.1 },
+        targetX: { value: 0.6, min: -15, max: 15, step: 0.1 },
         targetY: { value: 1, min: -10, max: 10, step: 0.1 },
         targetZ: { value: -20, min: -20, max: 0, step: 0.1 },
       },
@@ -89,7 +94,7 @@ export function Spotlight({ signalsRef }: Props) {
     // `decay` controls falloff with distance: 0 = none, 1 = linear, 2 = inverse-square.
     cone: folder(
       {
-        angleDeg: { value: 9, min: 1, max: 70, step: 1 },
+        angleDeg: { value: 11, min: 1, max: 70, step: 1 },
         penumbra: { value: 0.66, min: 0, max: 1, step: 0.01 },
         distance: { value: 82, min: 1, max: 100, step: 1 },
         decay: { value: 0.3, min: 0, max: 2, step: 0.05 },
@@ -112,10 +117,14 @@ export function Spotlight({ signalsRef }: Props) {
   // Per-frame: advance the fade and drive the live intensity. We mutate the
   // light directly (vs. a re-render per frame) so this stays cheap.
   useFrame((_, dt) => {
-    if (signalsRef.current?.playing) hasStartedRef.current = true;
-    if (hasStartedRef.current) {
-      fadeRef.current = Math.min(1, fadeRef.current + dt / FADE_IN_SECONDS);
-    }
+    const s = signalsRef.current;
+    if (s?.playing) hasStartedRef.current = true;
+    // Lit while the show is running; dark before first play and after the song
+    // ends. Fade in/out use different durations, so pick the rate by direction.
+    const target = hasStartedRef.current && !s?.ended ? 1 : 0;
+    const rate = target > fadeRef.current ? FADE_IN_SECONDS : FADE_OUT_SECONDS;
+    const dir = Math.sign(target - fadeRef.current);
+    fadeRef.current = Math.min(1, Math.max(0, fadeRef.current + (dir * dt) / rate));
     const eased = 1 - Math.pow(1 - fadeRef.current, 3); // easeOutCubic
     if (lightRef.current) lightRef.current.intensity = intensity * eased;
   });

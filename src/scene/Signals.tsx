@@ -25,6 +25,7 @@ export interface Signals {
   vocal: number; // 0..1 vocal amplitude
   chorus: boolean;
   playing: boolean;
+  ended: boolean; // true the moment the song naturally finished; cleared on next play
 }
 
 export function createSignals(): Signals {
@@ -39,6 +40,7 @@ export function createSignals(): Signals {
     vocal: 0,
     chorus: false,
     playing: false,
+    ended: false,
   };
 }
 
@@ -46,11 +48,12 @@ interface Props {
   player: Player | null;
   positionRef: MutableRefObject<number>;
   isPlaying: boolean;
+  ended: boolean;
   signalsRef: RefObject<Signals>;
 }
 
 // Runs first in the frame loop so children read fresh values.
-export function SignalsUpdater({ player, positionRef, isPlaying, signalsRef }: Props) {
+export function SignalsUpdater({ player, positionRef, isPlaying, ended, signalsRef }: Props) {
   // Cached <audio>/<video> element (found once the song loads, re-found if replaced).
   const audioRef = useRef<HTMLMediaElement | null>(null);
 
@@ -58,6 +61,7 @@ export function SignalsUpdater({ player, positionRef, isPlaying, signalsRef }: P
     const s = signalsRef.current;
     if (!s) return;
     s.playing = isPlaying;
+    s.ended = ended;
 
     if (!player || !player.video) {
       s.beat = Math.max(0, s.beat - 0.05);

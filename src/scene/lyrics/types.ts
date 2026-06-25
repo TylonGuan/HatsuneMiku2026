@@ -67,6 +67,14 @@ export interface SongConfig {
   /** Per-character overrides, keyed by global `charIndex` (0-based across whole song). */
   charOverrides?: Record<number, LyricStyleOverride>;
   /**
+   * Phrase indices (0-based, song order) sung by the chorus voices — the other
+   * Cryptons, not Miku. Single source of truth for "the team is singing here":
+   * these phrases get the pink lyric colour AND drive the on-stage chorus
+   * characters' bob/sway (they only sing during these phrases). See
+   * {@link Chorus}.
+   */
+  chorusVoicePhrases?: number[];
+  /**
    * Corrections for raw TextAlive char/word timing (phrase-text → corrected
    * word×char times). Only needed if the API's reported timing for a song is
    * broken. Consumed by `buildLyrics` when constructing the lyric data.

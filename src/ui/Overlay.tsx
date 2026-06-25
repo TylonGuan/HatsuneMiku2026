@@ -145,6 +145,11 @@ export function Overlay({
   const ready = status === "ready";
   /** Latches true once playback first starts, so the intro panel hides for good. */
   const [started, setStarted] = useState(false);
+  /** User toggle to hide the transport chrome (speaker / seek / skip) for a
+   *  clean, uncluttered view. Starts hidden so the stage is uncluttered by
+   *  default — the bottom-center triangle handle reveals the controls on
+   *  demand. The handle itself always stays visible. */
+  const [uiHidden, setUiHidden] = useState(true);
 
   useEffect(() => {
     if (isPlaying) setStarted(true);
@@ -159,6 +164,13 @@ export function Overlay({
   const showPaused = started && !isPlaying && !ended;
 
   const muteIcon = muted ? "🔇" : volume > 50 ? "🔊" : "🔉";
+
+  // Chrome visibility. The speaker is available as soon as the song loads; the
+  // seek bar and skip-to-lyric button only appear once playback has started
+  // (the skip button rides along with the seek bar). The hide toggle suppresses
+  // all three for a clean view.
+  const showControls = ready && !uiHidden;
+  const showTransport = started && !uiHidden;
 
   return (
     <>
@@ -175,8 +187,20 @@ export function Overlay({
         )}
       </div>
 
+      {/* Bottom-center triangle handle to collapse / expand the transport
+          chrome. Points up when hidden ("raise the UI"), down when shown
+          ("lower it"). Stays visible itself so it can always toggle back. */}
+      <button
+        className={`ui-toggle${ready ? " visible" : ""}${uiHidden ? "" : " open"}`}
+        title={uiHidden ? "Show controls" : "Hide controls"}
+        aria-label={uiHidden ? "Show controls" : "Hide controls"}
+        onClick={() => setUiHidden((v) => !v)}
+      >
+        <span className="ui-toggle-tri" />
+      </button>
+
       {/* Mute toggle + volume slider. */}
-      <div className={`controls${ready ? " visible" : ""}`}>
+      <div className={`controls${showControls ? " visible" : ""}`}>
         <button className="btn" title="Mute / unmute" onClick={controls.toggleMute}>
           {muteIcon}
         </button>
@@ -192,14 +216,19 @@ export function Overlay({
       </div>
 
       <button
-        className={`btn skip${ready ? " visible" : ""}`}
+        className={`btn skip${showTransport ? " visible" : ""}`}
         title="Skip to first lyric"
         onClick={controls.skip}
       >
         ⏭
       </button>
 
-      <SeekBar positionRef={positionRef} duration={duration} seek={controls.seek} visible={ready} />
+      <SeekBar
+        positionRef={positionRef}
+        duration={duration}
+        seek={controls.seek}
+        visible={showTransport}
+      />
 
       {/* Current phrase translation; only shown while actually playing. */}
       <div className={`subtitle${subtitle && isPlaying ? " visible" : ""}`}>{subtitle}</div>
