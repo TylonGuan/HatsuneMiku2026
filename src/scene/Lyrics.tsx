@@ -12,6 +12,7 @@ import {
 } from "three";
 import { charTexture } from "./textTexture";
 import { hsl } from "./color";
+import { smoothstep } from "./ease";
 import { lyricsDefaults } from "./lyrics/defaults";
 import { resolveStyle } from "./lyrics/resolve";
 import type { AnimStyle, LyricDefaults, ResolvedStyle, SongConfig } from "./lyrics/types";
@@ -44,9 +45,6 @@ const SIDE_MARGIN = 0.9;
  *  live camera FOV so user zoom doesn't trigger re-wrap (which would feel
  *  jarring). Matches the reference FOV in Theater.tsx. */
 const REFERENCE_FOV_DEG = 55;
-
-/** Smooth Hermite interpolation: 0 → 1 with easing at both ends. */
-const smoothstep = (u: number): number => u * u * (3 - 2 * u);
 
 /**
  * For each phrase, greedy-wrap its words onto multiple lines so no line

@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useTexture } from "@react-three/drei";
 import { folder, useControls } from "leva";
-import { SRGBColorSpace } from "three";
+import { DoubleSide, SRGBColorSpace } from "three";
 import type { Mesh, Texture } from "three";
 
 import kaitoUrl from "../../art/KaitoCutout/Original Kaito.png";
@@ -11,53 +11,49 @@ import lenUrl from "../../art/LenCutout/Len.png";
 import lukaUrl from "../../art/LukaCutout/Original Luka.png";
 import meikoUrl from "../../art/MeikoCutout/Meiko.png";
 import rinUrl from "../../art/RinCutout/Rin.png";
+import { easeOutBack, smoothstep } from "./ease";
 import { heightFactor, pulseShape } from "./Miku";
+import { PAPER_MATERIAL, SPRITE_ASPECT } from "./sketch";
 import type { Signals } from "./Signals";
 import type { CharDatum, LyricData } from "../textalive/types";
-import type { SongConfig } from "./lyrics/types";
+import type { CastAnchor, SongConfig } from "./lyrics/types";
 
-// Same cutout canvas as Miku — 4032×3024 (4:3), character centred with a
-// transparent surround, so the plane stays 4:3 and the alpha does the framing.
-const SPRITE_ASPECT = 4032 / 3024;
-
-// Paint order: behind Miku (1.8) but in front of the stage floor / background
-// (both 1). The curtains (1.9) and proscenium frame (2) still sit on top, so a
-// closed curtain hides the chorus exactly like it hides Miku.
+// Paint order: behind Miku (1.8) but in front of the stage floor / background.
 const CHORUS_RENDER_ORDER = 1.5;
 
-// Default theater tint, matching Miku — keeps everyone in the same moody
-// palette; the spotlight then picks out whoever stands centre stage.
-const DEFAULT_TINT = "#3d3947";
+// Default theater tint, matching Miku — slightly lighter than the backdrop.
+const DEFAULT_TINT = "#524d5e";
 
-// ── Bob / sway tuning ────────────────────────────────────────────────────────
-/** Base bob (world units, Y) per sung character — same feel as Miku's. */
+// ── Bob / sway tuning (same feel as Miku) ────────────────────────────────────
 const CHORUS_BOB_AMPLITUDE = 0.2;
-/**
- * Mirrors the lyric display's `sweep` (Lyrics.tsx default 0.5): each bob blends
- * its window between the character's *word* timing and its *own*, so the team
- * bobs in lockstep with the words lighting up — and holds as long as the word
- * stays lit — rather than on the stricter raw char window (which ticked late and
- * released early). Leva's live `sweep` is a dev-only tweak; production uses this.
- */
+/** Bob height during the lyric-free "la la la" ad-libs (vocal-amplitude driven).
+ *  Bigger than the per-syllable bob so each ad-lib note clearly registers. */
+const CHORUS_AMP_BOB_AMPLITUDE = 0.7;
+/** Mirrors the lyric display's word-blend so the bob tracks the lit word. */
 const LYRIC_SWEEP = 0.5;
-/** How fast the "chorus is sounding" gain eases in/out, so the bobs fade up at
- *  the start of a chorus and settle at the end instead of snapping. */
+/** How fast each member's singing gain eases in once they're on stage. */
 const CHORUS_GAIN_RATE = 2.5;
-/** Max sway angle (radians), matching Miku's gentle lean. */
 const CHORUS_SWAY_AMPLITUDE = 0.1;
-/** Sway frequency (Hz) — a slow continuous sine, same as Miku's. */
-const CHORUS_SWAY_FREQ_HZ = 0.2;
-/** Sway floor: they keep a gentle idle sway even off-chorus (so they're alive,
- *  not frozen, like Miku's idle), rising to full while the chorus sounds. */
+/** Beats per full sway cycle — tempo-locked, identical to Miku's so the team
+ *  sways in time with her. */
+const CHORUS_BEATS_PER_SWAY = 2.67;
+/** Fallback sway frequency (Hz) for beatless gaps, matching Miku's fallback. */
+const CHORUS_SWAY_FREQ_HZ = 0.5;
+/** Sway floor so they keep a gentle idle lean between sung syllables. */
 const CHORUS_SWAY_IDLE = 0.25;
-/** Per-member phase offset so the line sways loosely, not in robotic lockstep. */
-const CHORUS_SWAY_PHASE_STEP = 1.25;
+/** Sway phase — EQUAL to Miku's (`+ 1.0` in Miku.tsx) so the team syncs with her. */
+const CHORUS_SWAY_PHASE = 1.0;
 
-// One entry per chorus character (the other Cryptons who sing the harmony).
-// Defaults just spread them in a row across the stage behind Miku so they're
-// all visible to start; arrange each live via its leva folder, then copy the
-// values you like back here.
-const MEMBERS = [
+// ── Twirl tuning ─────────────────────────────────────────────────────────────
+const ENTER_DURATION = 0.8; // grow + spin in
+const EXIT_DURATION = 0.6; // shrink + spin out
+/** Bridge sub-second gaps between a member's cues so they don't flicker out/in. */
+const JOIN_MS = 900;
+
+// One entry per team member, with a FIXED home position (so e.g. Rin is always in
+// the same spot whenever she's cast). Defaults are the original tuned placements;
+// arrange each live via its leva folder, then copy values back here.
+const TEAM = [
   { name: "Rin", url: rinUrl, x: -4.65, y: -0.05, z: -17, scale: 7.5 },
   { name: "Len", url: lenUrl, x: 6.1, y: 0, z: -17, scale: 7.5 },
   { name: "Luka", url: lukaUrl, x: 4.6, y: 1.85, z: -19, scale: 7.5 },
@@ -65,18 +61,14 @@ const MEMBERS = [
   { name: "Kaito", url: kaitoUrl, x: 0.45, y: 2.5, z: -19, scale: 7.5 },
 ] as const;
 
-// One collapsed leva folder per member, each with x / y / z / scale sliders.
+// One collapsed leva folder per member (x / y / z / scale).
 const memberControls = Object.fromEntries(
-  MEMBERS.map((m) => [
+  TEAM.map((m) => [
     m.name,
     folder(
       {
         [`${m.name}-x`]: { value: m.x, min: -20, max: 20, step: 0.05 },
         [`${m.name}-y`]: { value: m.y, min: -8, max: 8, step: 0.05 },
-        // Floor goes well past the background plane (z=-20): these are
-        // render-order-composited (depthTest off), so a deeper z only shrinks
-        // them by perspective — handy for fitting the whole line — while they
-        // still draw in front of the background and behind Miku.
         [`${m.name}-z`]: { value: m.z, min: -35, max: -2, step: 0.1 },
         [`${m.name}-scale`]: { value: m.scale, min: 0.5, max: 12, step: 0.05 },
       },
@@ -85,155 +77,253 @@ const memberControls = Object.fromEntries(
   ]),
 );
 
+/** One member's lifecycle phase. */
+type Phase = "hidden" | "in" | "active" | "out";
+
 /**
- * One unison bob value for the syllable sounding at `pos`, walked over `chars`
- * (kept in time order). Uses the same word-blended window as the lyric display
- * (see {@link LYRIC_SWEEP}) and Miku's pulse shape, so it fires when the word
- * lights up and holds while it stays lit; returns 0 between syllables. `idxRef`
- * is a forward-walking hint, so the search stays O(1) during normal playback.
+ * One unison bob value for the syllable sounding at `pos`, over a given phrase's
+ * chars. Same word-blended window + pulse shape as Miku's bob.
  */
-function bobForSyllable(chars: CharDatum[], idxRef: { current: number }, pos: number): number {
-  if (chars.length === 0) return 0;
+function bobForSyllable(chars: CharDatum[], pos: number): number {
   const arriveOf = (c: CharDatum) => c.wordStart + (c.charStart - c.wordStart) * LYRIC_SWEEP;
-  let idx = idxRef.current;
-  if (idx >= chars.length || arriveOf(chars[idx]) > pos) idx = 0;
-  while (idx + 1 < chars.length && arriveOf(chars[idx + 1]) <= pos) idx++;
-  idxRef.current = idx;
-  const c = chars[idx];
-  const arrive = arriveOf(c);
-  const leave = c.wordEnd + (c.charEnd - c.wordEnd) * LYRIC_SWEEP;
-  if (pos >= arrive && pos < leave) {
-    const durationMs = leave - arrive;
-    const phase = (pos - arrive) / Math.max(1, durationMs);
-    return pulseShape(phase, durationMs) * heightFactor(durationMs) * CHORUS_BOB_AMPLITUDE;
+  for (const c of chars) {
+    const arrive = arriveOf(c);
+    const leave = c.wordEnd + (c.charEnd - c.wordEnd) * LYRIC_SWEEP;
+    if (pos >= arrive && pos < leave) {
+      const durationMs = leave - arrive;
+      const phase = (pos - arrive) / Math.max(1, durationMs);
+      return pulseShape(phase, durationMs) * heightFactor(durationMs) * CHORUS_BOB_AMPLITUDE;
+    }
   }
   return 0;
 }
 
 interface Props {
   signalsRef: RefObject<Signals>;
-  /** Lyric data — read for per-character bob timing (same source Miku uses) and
-   *  to find which phrase is sounding now, so the chorus bobs in sync with the
-   *  syllables being sung. */
+  /** Lyric data — phrase windows (to resolve cue anchors) + chars (for the bob). */
   lyrics: LyricData | null;
-  /** Song config — supplies `chorusVoicePhrases`, the phrases these characters
-   *  actually sing (the pink lines). They only animate during those. */
+  /** Song config — supplies `castingCues` (when each member is on stage) and
+   *  `singByPhrase` (who sings each phrase, for bobbing). */
   song: SongConfig;
 }
 
 /**
- * The chorus line — Rin, Len, Luka, Meiko, and Kaito standing behind Miku.
+ * The chorus ensemble — the five Cryptons behind Miku.
  *
- * Each is a billboard plane textured with its cutout PNG, placed and sized from
- * a per-character leva folder ("Chorus" panel). They share Miku's tint and
- * lighting, so the stage spotlight catches whoever the artist moves to centre.
+ * ### Choreography (cue timeline)
  *
- * ### Bob
+ * Each member appears only when the song's {@link SongConfig.castingCues} put them
+ * on stage — in a **fixed home position**. The cues compile (per member) into
+ * on-stage intervals; cue times are absolute ms or phrase-anchored, so entrances
+ * land on exact moments (the "woah oh" ad-libs) rather than phrase boundaries. A
+ * member **twirls in** at an interval's start and **out** at its end; a cue's
+ * `staggerOutMs` spreads the exits so the group spins out one-by-one (the
+ * sustained-note finishes that leave only Miku). Default: Miku alone.
  *
- * They bob with the same per-character pulse as Miku, in two cases:
- *   1. one of their own `chorusVoicePhrases` (the pink lines) is sounding — they
- *      bob to that line's own syllables; or
- *   2. the musical chorus is sounding ({@link Signals.chorus}) — they sing
- *      *along* to whatever syllable is current (Miku's chorus melody).
- * Case 1 takes priority, so an overlapping teal line can't hijack their own
- * line. A smoothed gain fades the motion in/out at the boundaries, and all five
- * bob in unison.
+ * ### Bob vs sway
+ *
+ * While on stage everyone sways in time with the song (in sync with Miku). Only
+ * members who actually **sing** the current phrase ({@link SongConfig.singByPhrase})
+ * also **bob** to its syllables — so the woah-oh appearances sway without bobbing,
+ * and during the [6]/[7]+[8]/[9] overlap the team bobs to *their* line ([8]/[9]).
+ *
+ * NOT yet encoded: the la-la-la POSITION SWAPS (need dynamic home slots).
  */
 export function Chorus({ signalsRef, lyrics, song }: Props) {
-  const textures = useTexture(MEMBERS.map((m) => m.url)) as Texture[];
+  const textures = useTexture(TEAM.map((m) => m.url)) as Texture[];
   const ctrl = useControls("Chorus", {
-    // Shared shading tint for the whole line.
     tint: { value: DEFAULT_TINT },
     ...memberControls,
   }) as Record<string, number | string>;
-
   const tint = ctrl.tint as string;
-  // Base Y per member (the leva position the bob offsets from).
-  const baseYs = MEMBERS.map((m) => ctrl[`${m.name}-y`] as number);
 
-  // The phrase indices these characters sing (the pink lines). They bob/sway
-  // only while one of these is the active phrase.
-  const chorusPhraseSet = useMemo(
-    () => new Set(song.chorusVoicePhrases ?? []),
-    [song.chorusVoicePhrases],
-  );
+  // Compile the cue timeline into per-member on-stage intervals (ms). Recomputed
+  // only when the lyrics (phrase times) or cues change.
+  const presence = useMemo(() => {
+    const byName: Record<string, [number, number][]> = {};
+    for (const m of TEAM) byName[m.name] = [];
+    const phraseByIndex = new Map((lyrics?.phrases ?? []).map((p) => [p.index, p]));
+    const resolve = (a: CastAnchor): number | null => {
+      if (typeof a === "number") return a;
+      const p = phraseByIndex.get(a.phrase);
+      if (!p) return null;
+      return (a.at === "end" ? p.endTime : p.startTime) + (a.offset ?? 0);
+    };
+    for (const cue of song.castingCues ?? []) {
+      const from = resolve(cue.from);
+      const to = resolve(cue.to);
+      if (from == null || to == null) continue;
+      const n = cue.who.length;
+      // Staggered exit: hold together for `staggerHoldMs`, then spin out group by
+      // group (groups of `staggerGroup`) evenly across the rest of the window.
+      const hold = cue.staggerHoldMs ?? 0;
+      const groupSize = Math.max(1, cue.staggerGroup ?? 1);
+      const numGroups = Math.ceil(n / groupSize);
+      const spread = Math.max(0, (cue.staggerOutMs ?? 0) - hold);
+      cue.who.forEach((name, k) => {
+        if (!byName[name]) return;
+        let end = to;
+        if (cue.staggerOutMs) {
+          const g = Math.floor(k / groupSize);
+          const frac = numGroups > 1 ? g / (numGroups - 1) : 0;
+          end = to + hold + spread * frac;
+        }
+        byName[name].push([from, end]);
+      });
+    }
+    for (const name of Object.keys(byName)) {
+      const sorted = byName[name].sort((a, b) => a[0] - b[0]);
+      const merged: [number, number][] = [];
+      for (const iv of sorted) {
+        const last = merged[merged.length - 1];
+        if (last && iv[0] - last[1] <= JOIN_MS) last[1] = Math.max(last[1], iv[1]);
+        else merged.push([iv[0], iv[1]]);
+      }
+      byName[name] = merged;
+    }
+    return byName;
+  }, [lyrics, song.castingCues]);
 
-  // Just the team's own characters (the pink lines), in song order. The bob
-  // walks THIS list, not the whole song, so an overlapping teal line can never
-  // become the "current syllable" and rob them of their cue.
-  const chorusChars = useMemo(
-    () => (lyrics?.chars ?? []).filter((c) => chorusPhraseSet.has(c.phraseIndex)),
-    [lyrics, chorusPhraseSet],
-  );
+  // Per-phrase chars for the sung phrases, so the bob can target the line the team
+  // is actually singing (not whatever else overlaps).
+  const charsBySungPhrase = useMemo(() => {
+    const map = new Map<number, CharDatum[]>();
+    const chars = lyrics?.chars ?? [];
+    for (const idxStr of Object.keys(song.singByPhrase ?? {})) {
+      const idx = Number(idxStr);
+      map.set(
+        idx,
+        chars.filter((c) => c.phraseIndex === idx),
+      );
+    }
+    return map;
+  }, [lyrics, song.singByPhrase]);
 
-  /** One mesh handle per member, so the bob can mutate Y without re-rendering. */
+  /** One mesh handle per member. */
   const meshRefs = useRef<(Mesh | null)[]>([]);
-  /** Eased 0..1 "team is singing" gain. */
-  const chorusGainRef = useRef(0);
-  /** Forward-walking hints for the two bob sources: the team's own pink chars,
-   *  and (when singing along to the musical chorus) the full lyric char list. */
-  const pinkIdxRef = useRef(0);
-  const singAlongIdxRef = useRef(0);
+  /** Per-member lifecycle phase. */
+  const phaseRef = useRef<Phase[]>(TEAM.map(() => "hidden"));
+  /** Per-member 0..1 twirl progress. */
+  const twirlRef = useRef<number[]>(TEAM.map(() => 0));
+  /** Per-member eased gain (drives bob/sway amplitude). */
+  const gainRef = useRef<number[]>(TEAM.map(() => 0));
 
   useFrame((_, dt) => {
     const s = signalsRef.current;
     if (!s) return;
+    const d = Math.min(dt, 0.05);
+    const pos = s.pos;
+    // Inside a lyric-free "la la la" window, the team bobs to the vocal amplitude
+    // instead of to lyric syllables (there are none).
+    const inAmp = (song.ampBobWindows ?? []).some(([a, b]) => pos >= a && pos < b);
 
-    // Is one of the team's phrases (the pink lines) sounding now? Use `.some`,
-    // NOT `.find` — phrases overlap in this song, and `.find` returns the first
-    // match in song order, which is often a concurrent teal line. That made the
-    // team read "teal" and miss their cue until the overlap cleared.
-    let inChorusSection = false;
-    const phrases = lyrics?.phrases;
-    if (phrases) {
-      for (const p of phrases) {
-        if (chorusPhraseSet.has(p.index) && s.pos >= p.startTime && s.pos < p.endTime) {
-          inChorusSection = true;
+    // Tempo-locked sway base (identical formula to Miku's, so they're in sync).
+    const tSec = pos * 0.001;
+    const swayCycles =
+      s.beatPhase >= 0 ? s.beats / CHORUS_BEATS_PER_SWAY : tSec * CHORUS_SWAY_FREQ_HZ;
+    const swayBase = Math.sin(swayCycles * Math.PI * 2 + CHORUS_SWAY_PHASE);
+
+    // Which sung phrase is active, who sings it, and its current-syllable bob.
+    // Only these members bob; everyone else on stage just sways.
+    let singers: Set<string> | null = null;
+    let singBob = 0;
+    const singByPhrase = song.singByPhrase;
+    if (singByPhrase) {
+      for (const p of lyrics?.phrases ?? []) {
+        const sg = singByPhrase[p.index];
+        if (sg && pos >= p.startTime && pos < p.endTime) {
+          singers = new Set(sg);
+          singBob = bobForSyllable(charsBySungPhrase.get(p.index) ?? [], pos);
           break;
         }
       }
     }
 
-    // Two ways the team comes alive, both per-syllable like Miku:
-    //   1) one of their OWN pink phrases is sounding -> bob to that pink syllable
-    //      (walk the pink chars only, so an overlapping teal line can't hijack it)
-    //   2) otherwise, if the musical chorus is sounding (Songle's s.chorus) ->
-    //      sing ALONG to whatever syllable is current (Miku's chorus melody).
-    // (1) wins so their own line always takes priority over a general sing-along.
-    let bob = 0;
-    if (inChorusSection) {
-      bob = bobForSyllable(chorusChars, pinkIdxRef, s.pos);
-    } else if (s.chorus) {
-      bob = bobForSyllable(lyrics?.chars ?? [], singAlongIdxRef, s.pos);
-    }
-
-    // Active (and swaying at full) whenever either trigger holds; ease so the
-    // bob/sway fade in/out at the boundaries instead of snapping.
-    const gainTarget = inChorusSection || s.chorus ? 1 : 0;
-    chorusGainRef.current += (gainTarget - chorusGainRef.current) * Math.min(1, dt * CHORUS_GAIN_RATE);
-    const gain = chorusGainRef.current;
-    bob *= gain;
-
-    // Sway — a slow continuous lean like Miku's. Keeps a gentle idle amplitude
-    // off-chorus so they're never frozen, rising to full while the chorus
-    // sounds. Each member is phase-offset so the line doesn't move in lockstep.
-    const swayGain = CHORUS_SWAY_IDLE + (1 - CHORUS_SWAY_IDLE) * gain;
-    const tSec = s.pos * 0.001;
-
-    for (let i = 0; i < meshRefs.current.length; i++) {
+    for (let i = 0; i < TEAM.length; i++) {
       const mesh = meshRefs.current[i];
       if (!mesh) continue;
-      mesh.position.y = baseYs[i] + bob;
-      mesh.rotation.z =
-        Math.sin(tSec * Math.PI * 2 * CHORUS_SWAY_FREQ_HZ + i * CHORUS_SWAY_PHASE_STEP) *
-        swayGain *
-        CHORUS_SWAY_AMPLITUDE;
+      const name = TEAM[i].name;
+      const homeY = ctrl[`${name}-y`] as number;
+
+      // Cast right now?
+      let present = false;
+      for (const iv of presence[name]) {
+        if (pos >= iv[0] && pos < iv[1]) {
+          present = true;
+          break;
+        }
+      }
+
+      // Lifecycle edges.
+      const phase = phaseRef.current[i];
+      if (present && (phase === "hidden" || phase === "out")) {
+        phaseRef.current[i] = "in";
+        twirlRef.current[i] = 0;
+        gainRef.current[i] = 0;
+      } else if (!present && (phase === "active" || phase === "in")) {
+        phaseRef.current[i] = "out";
+        twirlRef.current[i] = 0;
+      }
+
+      const ph = phaseRef.current[i];
+      if (ph === "hidden") {
+        mesh.visible = false;
+        continue;
+      }
+      mesh.visible = true;
+
+      // ── Entrance / exit twirl: owns scale + Y-rotation, suppresses bob/sway ──
+      if (ph === "in" || ph === "out") {
+        const dur = ph === "in" ? ENTER_DURATION : EXIT_DURATION;
+        twirlRef.current[i] += d / dur;
+        const t = Math.min(1, twirlRef.current[i]);
+        const spin = smoothstep(t) * Math.PI * 2;
+        if (ph === "in") {
+          mesh.scale.setScalar(Math.max(0, easeOutBack(t))); // grow with a pop
+          mesh.rotation.y = spin;
+        } else {
+          mesh.scale.setScalar(1 - smoothstep(t)); // shrink to nothing
+          mesh.rotation.y = -spin;
+        }
+        mesh.rotation.z = 0;
+        mesh.position.y = homeY;
+        if (t >= 1) {
+          if (ph === "in") {
+            phaseRef.current[i] = "active";
+            mesh.scale.setScalar(1);
+            mesh.rotation.y = 0;
+          } else {
+            phaseRef.current[i] = "hidden";
+            mesh.visible = false;
+          }
+        }
+        continue;
+      }
+
+      // ── Active: sway always; bob only if this member sings the current line ──
+      gainRef.current[i] += (1 - gainRef.current[i]) * Math.min(1, d * CHORUS_GAIN_RATE);
+      const gain = gainRef.current[i];
+      const swayGain = CHORUS_SWAY_IDLE + (1 - CHORUS_SWAY_IDLE) * gain;
+      // A sung LINE takes priority over the la-la ad-lib: while a line is active
+      // (`singers != null`) only its singers bob (to syllables) and everyone else
+      // sways; only when no line is active does the amp-bob window kick in.
+      const bob = singers
+        ? singers.has(name)
+          ? singBob * gain
+          : 0
+        : inAmp
+          ? s.vocalBob * CHORUS_AMP_BOB_AMPLITUDE * gain
+          : 0;
+      mesh.scale.setScalar(1);
+      mesh.rotation.y = 0;
+      mesh.position.y = homeY + bob;
+      mesh.rotation.z = swayBase * swayGain * CHORUS_SWAY_AMPLITUDE;
     }
   });
 
   return (
     <group>
-      {MEMBERS.map((m, i) => {
+      {TEAM.map((m, i) => {
         const tex = textures[i];
         tex.colorSpace = SRGBColorSpace;
         const x = ctrl[`${m.name}-x`] as number;
@@ -250,16 +340,14 @@ export function Chorus({ signalsRef, lyrics, song }: Props) {
             }}
             position={[x, y, z]}
             renderOrder={CHORUS_RENDER_ORDER}
+            visible={false}
           >
             <planeGeometry args={[w, h]} />
             <meshPhongMaterial
               map={tex}
-              transparent
-              depthTest={false}
-              depthWrite={false}
               color={tint}
-              toneMapped={false}
-              shininess={0}
+              side={DoubleSide}
+              {...PAPER_MATERIAL}
             />
           </mesh>
         );

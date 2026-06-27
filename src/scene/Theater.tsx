@@ -9,6 +9,7 @@ import stageFloorUrl from "../../art/Scene1/TheaterStageFloor.png";
 import frameUrl from "../../art/Scene1/TheaterCurtainsprosceniumWindows.png";
 import seatsUrl from "../../art/Scene1/TheaterSeats.png";
 import { BACKGROUND_LIGHT_LAYER } from "./BackgroundLight";
+import { PAPER_MATERIAL, STAGE_TINT } from "./sketch";
 
 // All layers share one 3432x2429 canvas, so by default they overlay pixel-perfect.
 const IMG_ASPECT = 3432 / 2429; // ≈ 1.413
@@ -34,7 +35,6 @@ const LAYERS = [
 
 const CAMERA_BASE_Z = 7; // keep in sync with CameraRig RADIUS/TARGET
 const MARGIN = 1.4; // oversize each plane so camera moves / zoom-out never reveal edges
-const TINT = "#3d3947"; // dim the white paper to a moody, "colorless" theatre tone
 
 // ── Plane-sizing reference ───────────────────────────────────────────────────
 // Planes are sized at a FIXED reference FOV + aspect rather than the live ones,
@@ -127,15 +127,7 @@ export function Theater() {
           }}
         >
           <planeGeometry args={[p.w, p.h]} />
-          <meshPhongMaterial
-            map={p.tex}
-            transparent
-            depthTest={false}
-            depthWrite={false}
-            color={TINT}
-            toneMapped={false}
-            shininess={0}
-          />
+          <meshPhongMaterial map={p.tex} color={STAGE_TINT} {...PAPER_MATERIAL} />
         </mesh>
       ))}
     </group>

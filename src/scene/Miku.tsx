@@ -8,13 +8,11 @@ import type { Mesh, Texture } from "three";
 
 import mikuHoldUrl from "../../art/MikuCutout/Miku Hold.png";
 import mikuWaveUrl from "../../art/MikuCutout/Miku Wave.png";
+import { smoothstep } from "./ease";
+import { PAPER_MATERIAL, SPRITE_ASPECT } from "./sketch";
 import type { LyricData } from "../textalive/types";
 import type { Signals } from "./Signals";
 import type { SongConfig } from "./lyrics/types";
-
-// Sprites are 4032 × 3024 (4:3) — Miku is cutout-centered with transparent
-// surroundings, so the plane stays 4:3 and the alpha channel does the framing.
-const SPRITE_ASPECT = 4032 / 3024;
 
 // One entry per pose. To add a new pose: import the PNG, append it here,
 // extend the `Pose` union and the leva dropdown options.
@@ -27,12 +25,21 @@ type Pose = keyof typeof POSES;
 
 // ── Animation tuning ─────────────────────────────────────────────────────────
 /** Base bob (world units, Y). Each char's actual height = this × heightFactor(dur). */
-const BOB_AMPLITUDE = 0.2;
+const BOB_AMPLITUDE = 0.4;
+/** Bob height during the lyric-free "la la la" ad-libs, driven by vocal amplitude.
+ *  Bigger than the per-char bob so each ad-lib note clearly registers (the la-la
+ *  is quieter than the song's peak, so the normalized amplitude is modest). */
+const AMP_BOB_AMPLITUDE = 0.9;
 /** Max sway angle (radians) when she's singing fully. */
 const SWAY_AMPLITUDE = 0.1;
-/** Sway frequency (Hz). Sway is a slow continuous sine — locking it to a
- *  segment caused snaps at boundaries, this never does. */
-const SWAY_FREQ_HZ = 0.2;
+/** Beats per full sway cycle — the sway LOCKS TO THE SONG'S TEMPO when beat data
+ *  is available: one left→right→back lean every this-many beats, so she sways in
+ *  time with the music. Higher = slower/lazier lean, lower = faster. 2.67 is a
+ *  quarter slower than a 2-beat cycle. */
+const BEATS_PER_SWAY = 2.67;
+/** Fallback sway frequency (Hz), used only during beatless gaps (intro / silence)
+ *  where there's no tempo to lock to, so she never freezes mid-lean. */
+const SWAY_FREQ_HZ = 0.5;
 /** Idle motion amplitude during instrumentals (0..1). Keeps her gently alive
  *  rather than freezing between phrases. */
 const IDLE_GAIN = 0.25;
@@ -54,9 +61,6 @@ const BOB_HEIGHT_NORMAL_MS = 500;
  *  ceiling keeps very long held notes from launching her off-screen. */
 const BOB_MIN_HEIGHT_FACTOR = 0.5;
 const BOB_MAX_HEIGHT_FACTOR = 1.5;
-
-/** Smoothstep ease (Hermite). */
-const smoothstep = (t: number): number => t * t * (3 - 2 * t);
 
 /**
  * Pulse shape across one character's [0, 1] phase:
@@ -155,9 +159,10 @@ export function Miku({ signalsRef, lyrics, song }: Props) {
       { collapsed: false },
     ),
     // Defaults to the theater tint so she blends into the same moody palette;
-    // the spotlight then brightens her on stage. Pick a lighter colour here if
-    // you want her to stand out even outside the spotlight.
-    tint: { value: "#3d3947" },
+    // the spotlight then brightens her on stage. Lightened from #3d3947 so she
+    // reads clearly even outside the spotlight (the stage was too dark on some
+    // displays). Pick a lighter colour here if you want her brighter still.
+    tint: { value: "#524d5e" },
   });
 
   const tex = textures[poseUrls.indexOf(POSES[pose])];
@@ -195,7 +200,7 @@ export function Miku({ signalsRef, lyrics, song }: Props) {
       // wiggle channels (rotation.z, position.y) so the two don't blend.
       spinProgressRef.current += dt / SPIN_DURATION;
       const t = Math.min(1, spinProgressRef.current);
-      const eased = t * t * (3 - 2 * t); // smoothstep
+      const eased = smoothstep(t);
       mesh.rotation.y = eased * Math.PI * 2;
       mesh.rotation.z = 0;
       mesh.position.y = y;
@@ -238,11 +243,24 @@ export function Miku({ signalsRef, lyrics, song }: Props) {
         }
       }
 
-      // SWAY — slow free-running sine on the song clock. Deliberately not
-      // locked to any lyric segment so it stays continuous; gives a second
-      // voice of motion outside the bob's per-character pulses and keeps her
-      // visibly alive during instrumentals (where bob is naturally 0).
-      const sway = Math.sin(tSec * Math.PI * 2 * SWAY_FREQ_HZ + 1.0) * gain * SWAY_AMPLITUDE;
+      // During the lyric-free "la la la" ad-libs there are no chars to bob to, so
+      // bob to the live vocal amplitude instead — keeps her moving with the voice.
+      // A sung LINE takes priority over the ad-lib, though: only amp-bob when no
+      // lyric phrase is active, so when a line (e.g. [19]) begins inside an amp
+      // window she bobs to its syllables rather than carrying on with the la-la.
+      if (
+        s.phrasePhase < 0 &&
+        (song.ampBobWindows ?? []).some(([a, b]) => s.pos >= a && s.pos < b)
+      ) {
+        bob = s.vocalBob * AMP_BOB_AMPLITUDE;
+      }
+
+      // SWAY — a continuous lean locked to the song's tempo: one full
+      // left→right→back cycle every BEATS_PER_SWAY beats (so it keeps time with
+      // the music), driven by the continuous beat position. Falls back to a
+      // free-running rate during beatless gaps so she stays alive, not frozen.
+      const swayCycles = s.beatPhase >= 0 ? s.beats / BEATS_PER_SWAY : tSec * SWAY_FREQ_HZ;
+      const sway = Math.sin(swayCycles * Math.PI * 2 + 1.0) * gain * SWAY_AMPLITUDE;
 
       mesh.position.y = y + bob;
       mesh.rotation.z = sway;
@@ -254,16 +272,12 @@ export function Miku({ signalsRef, lyrics, song }: Props) {
       <planeGeometry args={[w, h]} />
       <meshPhongMaterial
         map={tex}
-        transparent
-        depthTest={false}
-        depthWrite={false}
         color={tint}
-        toneMapped={false}
-        shininess={0}
         // Both sides rendered so the spin (rotation.y) doesn't go invisible
         // for half its travel. Miku appears mirrored from behind, which is
         // fine — her pose is roughly symmetric.
         side={DoubleSide}
+        {...PAPER_MATERIAL}
       />
     </mesh>
   );

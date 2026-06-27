@@ -145,6 +145,29 @@ export function Overlay({
   const ready = status === "ready";
   /** Latches true once playback first starts, so the intro panel hides for good. */
   const [started, setStarted] = useState(false);
+  /** Brief "how to move the camera" hint, shown once right after the first start
+   *  and then faded away. */
+  const [showHint, setShowHint] = useState(false);
+  const hintShownRef = useRef(false);
+  /** Coarse pointer ⇒ touch device ⇒ mention tilt; otherwise mention drag/scroll. */
+  const [isTouch] = useState(
+    () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches,
+  );
+  /** iOS (incl. iPadOS, which masquerades as "MacIntel" + touch). iOS Safari
+   *  makes media-element volume/mute read-only — the OS reserves it for the
+   *  hardware buttons — so the in-app volume controls do nothing there and are
+   *  replaced with a hint. */
+  const [isIOS] = useState(() => {
+    if (typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent;
+    return (
+      /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    );
+  });
+  const hintText = isTouch
+    ? "Tilt your device or drag to look around · pinch to zoom"
+    : "Drag to look around · scroll to zoom";
   /** User toggle to hide the transport chrome (speaker / seek / skip) for a
    *  clean, uncluttered view. Starts hidden so the stage is uncluttered by
    *  default — the bottom-center triangle handle reveals the controls on
@@ -154,6 +177,15 @@ export function Overlay({
   useEffect(() => {
     if (isPlaying) setStarted(true);
   }, [isPlaying]);
+
+  // First time playback starts, flash the camera-gesture hint for a few seconds.
+  useEffect(() => {
+    if (!started || hintShownRef.current) return;
+    hintShownRef.current = true;
+    setShowHint(true);
+    const t = setTimeout(() => setShowHint(false), 6000);
+    return () => clearTimeout(t);
+  }, [started]);
 
   /**
    * The title card shows in two cases: (1) before the first play, (2) after the
@@ -199,21 +231,24 @@ export function Overlay({
         <span className="ui-toggle-tri" />
       </button>
 
-      {/* Mute toggle + volume slider. */}
-      <div className={`controls${showControls ? " visible" : ""}`}>
-        <button className="btn" title="Mute / unmute" onClick={controls.toggleMute}>
-          {muteIcon}
-        </button>
-        <input
-          className="volume"
-          type="range"
-          min={0}
-          max={100}
-          step={1}
-          value={muted ? 0 : volume}
-          onChange={(e) => controls.setVolume(parseFloat(e.target.value))}
-        />
-      </div>
+      {/* Mute toggle + volume slider. Omitted entirely on iOS, where media volume
+          is read-only (the OS reserves it for the hardware buttons). */}
+      {!isIOS && (
+        <div className={`controls${showControls ? " visible" : ""}`}>
+          <button className="btn" title="Mute / unmute" onClick={controls.toggleMute}>
+            {muteIcon}
+          </button>
+          <input
+            className="volume"
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={muted ? 0 : volume}
+            onChange={(e) => controls.setVolume(parseFloat(e.target.value))}
+          />
+        </div>
+      )}
 
       <button
         className={`btn skip${showTransport ? " visible" : ""}`}
@@ -229,6 +264,9 @@ export function Overlay({
         seek={controls.seek}
         visible={showTransport}
       />
+
+      {/* Transient camera-gesture hint, shown once right after the first start. */}
+      <div className={`gesture-hint${showHint ? " visible" : ""}`}>{hintText}</div>
 
       {/* Current phrase translation; only shown while actually playing. */}
       <div className={`subtitle${subtitle && isPlaying ? " visible" : ""}`}>{subtitle}</div>

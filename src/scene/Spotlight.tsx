@@ -4,6 +4,7 @@ import { useFrame } from "@react-three/fiber";
 import { folder, useControls } from "leva";
 import { Object3D } from "three";
 import type { SpotLight as ThreeSpotLight } from "three";
+import { easeOutCubic } from "./ease";
 import type { Signals } from "./Signals";
 
 /** Seconds for the spotlight to fade from black to full intensity on first play. */
@@ -125,7 +126,7 @@ export function Spotlight({ signalsRef }: Props) {
     const rate = target > fadeRef.current ? FADE_IN_SECONDS : FADE_OUT_SECONDS;
     const dir = Math.sign(target - fadeRef.current);
     fadeRef.current = Math.min(1, Math.max(0, fadeRef.current + (dir * dt) / rate));
-    const eased = 1 - Math.pow(1 - fadeRef.current, 3); // easeOutCubic
+    const eased = easeOutCubic(fadeRef.current);
     if (lightRef.current) lightRef.current.intensity = intensity * eased;
   });
 

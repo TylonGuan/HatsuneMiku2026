@@ -53,6 +53,34 @@ export interface LyricStyleOverride {
 export interface LyricDefaults extends Required<LyricStyleOverride> {}
 
 /**
+ * A point in the song for a casting cue: either an absolute time in ms, or
+ * anchored to a phrase's start/end (with an optional ms offset). Phrase anchors
+ * let cues track the lyric data instead of hard-coding times we don't know.
+ */
+export type CastAnchor = number | { phrase: number; at?: "start" | "end"; offset?: number };
+
+/**
+ * One on-stage spell for a set of team members: they twirl in at {@link from} and
+ * out at {@link to}. If {@link staggerOutMs} is set, they exit ONE BY ONE, spread
+ * evenly across `[to, to + staggerOutMs]` (the sustained-note spin-outs).
+ */
+export interface CastCue {
+  /** Team member names this cue covers (e.g. ["Rin", "Len"]). */
+  who: string[];
+  from: CastAnchor;
+  to: CastAnchor;
+  /** Total window (ms) from {@link to} over which the group spins out, leaving
+   *  Miku. Omit for a clean simultaneous exit at `to`. */
+  staggerOutMs?: number;
+  /** Hold (ms) after `to` before the first exit — they sustain together first,
+   *  then spin out. The spread happens over the remaining window. */
+  staggerHoldMs?: number;
+  /** How many exit at a time (1 = one-by-one, 2 = pairs). Bigger groups give each
+   *  step more time when the window is short. Defaults to 1. */
+  staggerGroup?: number;
+}
+
+/**
  * Everything one song knows about itself: per-layer style overrides and raw
  * lyric-timing corrections. All fields optional — a brand-new song with no
  * tweaks just renders on the global defaults.
@@ -74,6 +102,24 @@ export interface SongConfig {
    * {@link Chorus}.
    */
   chorusVoicePhrases?: number[];
+  /**
+   * Stage entrance/exit timeline for the on-stage team — WHEN each member is
+   * present. Translated from the song's casting sheet. See {@link CastCue}.
+   * Consumed by {@link Chorus}; absent → no team ever (Miku alone).
+   */
+  castingCues?: CastCue[];
+  /**
+   * WHO sings each phrase (team member names per phrase index). A member only
+   * bobs while a phrase they sing is active; otherwise they sway. Miku is
+   * implicit (her own component). Consumed by {@link Chorus}.
+   */
+  singByPhrase?: Record<number, string[]>;
+  /**
+   * Lyric-free time windows `[startMs, endMs]` (the "la la la" ad-libs). Inside
+   * one, the characters (and Miku) bob to the vocal amplitude instead of to lyric
+   * syllables. Consumed by {@link Chorus} and {@link Miku}.
+   */
+  ampBobWindows?: [number, number][];
   /**
    * Corrections for raw TextAlive char/word timing (phrase-text → corrected
    * word×char times). Only needed if the API's reported timing for a song is

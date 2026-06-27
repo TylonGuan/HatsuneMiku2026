@@ -42,23 +42,38 @@ sources of brightness.
 - **Per-character lyric animation** — every kanji has an entry, settle, and
   exit phase, with timing taken from TextAlive (and per-phrase corrections
   supplied for the parallel-voice chorus where the API timing is broken).
-- **Sketchbook theatre stage** — original graphite art rendered as four
-  parallaxed layers (back wall, stage floor, proscenium / curtains, audience
-  seats), depth-tinted to a moody palette.
+  Phrases word-wrap responsively so side glyphs never fall off narrow screens.
+- **Sketchbook theatre stage** — original graphite art rendered as five
+  parallaxed layers (back wall, background painting, stage floor, proscenium /
+  curtains, audience seats), depth-tinted to a moody palette.
+- **Curtains** — hand-drawn drapes that part when the song starts and draw
+  closed again when it ends, returning the stage to its opening look.
 - **Spotlight with fade-in** — a real `THREE.SpotLight` positioned behind and
   above the audience, aimed at the stage; intensity eases up from black the
-  first time playback starts.
+  first time playback starts. A separate pair of stage-wash lights illuminates
+  only the background painting (via a dedicated render layer).
 - **Miku character animation** — bob locked to per-character timing
   (long held notes show a visible hold at the peak; quick syllables register
   as brief blips), continuous sway, and a vertical spin on chorus entry.
+- **Rotating chorus ensemble** — the other Cryptons (Rin, Len, Luka, Meiko,
+  Kaito) take the stage during choruses and their own harmony lines. A random
+  cast is drawn into fixed slots each chorus, **twirling into existence** on
+  entry and out on exit, with an in-place dance spin at the end of each pink line.
+- **Climax confetti** — an instanced field of star sprites rains down through the
+  foreground during the final chorus, gated on a smoothed climax signal so it
+  only renders when on screen.
 - **Phrase-cascading style overrides** — global defaults → per-song → per-phrase
   → per-word → per-character, CSS-style cascade for tuning specific moments
   without writing custom code per song.
 - **English subtitles** — per-phrase translation gloss displayed in sync with
   the original Japanese lyrics, including the parallel-voice chorus shown as
   two simultaneous lines.
-- **Camera rig** — orbit-on-drag with bounded swing and idle drift; preserves
-  the front-row audience perspective.
+- **Camera rig** — orbit-on-drag with bounded swing and idle drift, pinch /
+  scroll zoom, and **gyroscope tilt control** on supported phones/tablets (with
+  a one-time on-screen gesture hint after start). Preserves the front-row
+  audience perspective at every angle.
+- **Tunable house lights** — ambient brightness is exposed as a live control so
+  the stage stays readable across displays.
 - **Playback controls** — scrub bar, volume, mute, skip-to-first-lyric.
 
 ---
@@ -89,8 +104,24 @@ sources of brightness.
 
 ```bash
 npm install
-npm run dev          # starts webpack-dev-server (http://localhost:8080)
+npm run dev          # starts webpack-dev-server (http://localhost:1234)
 ```
+
+### Testing on a phone/tablet (gyroscope)
+
+iOS only exposes the gyroscope over **HTTPS**, so plain `npm run dev` over the
+LAN won't trigger it. Use:
+
+```bash
+npm run dev:mobile   # serves HTTPS on 0.0.0.0 (same port, 1234)
+```
+
+Open `https://<your-LAN-IP>:1234` on the device (same Wi-Fi), accept the
+self-signed-certificate warning, tap to start, and allow "Motion & Orientation
+Access." For a trusted URL with no cert warning, tunnel instead (e.g.
+`npx cloudflared tunnel --url http://localhost:1234` alongside `npm run dev`).
+To exercise the tilt logic on desktop, use Chrome DevTools → **Sensors** →
+*Orientation*.
 
 ### Production build
 
@@ -108,21 +139,31 @@ npm run typecheck    # tsc --noEmit
 
 ## Project layout
 
+> A deeper, element-by-element guide for contributors (and AI assistants) lives
+> in [`CLAUDE.md`](./CLAUDE.md), including the render-order table and conventions.
+
 ```
 src/
   App.tsx                  — root component; orchestrates player + canvas + UI
   config.ts                — song + TextAlive token + English translation
   index.tsx                — React mount
-  styles.css               — DOM-layer styling (overlay, controls, subtitle)
+  styles.css               — DOM-layer styling (overlay, controls, subtitle, hint)
   scene/
-    Scene.tsx              — three.js scene composition
-    Theater.tsx            — four parallaxed sketch backdrop layers
+    Scene.tsx              — three.js scene composition + Bloom + ambient control
+    Theater.tsx            — five parallaxed sketch backdrop layers
+    Curtains.tsx           — drapes that part on play / close on song end
     Miku.tsx               — hand-drawn Miku sprite + bob/sway/spin animation
+    Chorus.tsx             — rotating Crypton ensemble + twirl in/out + dance spin
+    Lyrics.tsx             — per-character glyph sprites, lifecycle, responsive wrap
+    Stars.tsx              — instanced falling-star confetti for the climax
     Spotlight.tsx          — real spotLight with fade-in on first play
-    Lyrics.tsx             — per-character glyph sprites and lifecycle
-    CameraRig.tsx          — orbit-on-drag camera with idle drift
+    BackgroundLight.tsx    — stage-wash lights for the background painting (layer-gated)
+    Background.tsx         — atmospheric particles + clear-colour wash
+    CameraRig.tsx          — orbit-on-drag + zoom + gyroscope tilt
+    gyro.ts                — device-orientation input singleton (mobile)
     Signals.tsx            — per-frame timing signals shared scene-wide
-    Background.tsx         — atmospheric particles + fog (currently dormant)
+    color.ts / ease.ts / sketch.ts — shared HSL / easing / paper-sprite helpers
+    textTexture.ts         — cached canvas glyph textures (system fonts)
     lyrics/
       defaults.ts          — global default lyric style
       resolve.ts           — cascade resolver (defaults → song → phrase → word → char)
@@ -134,10 +175,11 @@ src/
     analysis.ts            — beat / vocal / chorus signal helpers
     types.ts               — lyric data types
   ui/
-    Overlay.tsx            — HTML transport controls + subtitle layer
+    Overlay.tsx            — HTML transport controls + subtitle + gesture hint
 art/
   Scene1/                  — graphite-pencil theatre backdrop layers (PNG)
   MikuCutout/              — hand-drawn Miku poses with transparent BG
+  RinCutout/ LenCutout/ LukaCutout/ MeikoCutout/ KaitoCutout/ — chorus cutouts
 ```
 
 ---

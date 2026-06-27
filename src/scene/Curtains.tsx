@@ -8,16 +8,16 @@ import type { Mesh, Texture } from "three";
 
 import curtainLeftUrl from "../../art/Scene1/Curtains L.png";
 import curtainRightUrl from "../../art/Scene1/Curtains R.png";
+import { easeInOutCubic } from "./ease";
+import { PAPER_MATERIAL, SPRITE_ASPECT, STAGE_TINT } from "./sketch";
 import type { Signals } from "./Signals";
 
-// Both curtains are the same transparent 4032x3024 PNG size, each drawn to fit
-// the stage opening of the theater cutout (the left drape on one canvas, the
-// right on the other). Sized at their native aspect — NOT stretched to cover
-// the whole camera frame — so they match the opening rather than the theater.
-const IMG_ASPECT = 4032 / 3024; // ≈ 1.333
+// Both curtains are the same transparent cutout PNG size (4:3, see SPRITE_ASPECT),
+// each drawn to fit the stage opening of the theater cutout (the left drape on one
+// canvas, the right on the other). Sized at their native aspect — NOT stretched to
+// cover the whole camera frame — so they match the opening rather than the theater.
 
 const CAMERA_BASE_Z = 7; // keep in sync with CameraRig / Theater
-const TINT = "#3d3947"; // same moody paper tone as the rest of the theater
 
 // Plane-sizing reference — fixed FOV so the curtains don't shrink with the
 // viewport (mirrors Theater.tsx). `scale` below is expressed as a fraction of
@@ -26,22 +26,17 @@ const REFERENCE_FOV_DEG = 55;
 
 // ── Open / close motion ──────────────────────────────────────────────────────
 // Seconds for a full part or close. A linear timeline advances at this rate and
-// is eased through `easeInOut` so the curtains accelerate off the centre and
+// is eased through `easeInOutCubic` so the curtains accelerate off the centre and
 // settle gently at the sides — and reverse cleanly if the state flips mid-slide.
 const SLIDE_SECONDS = 1.8;
 
-function easeInOut(t: number): number {
-  // easeInOutCubic
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
 // Size a curtain plane at its native aspect: `scale` is the plane height as a
-// fraction of the camera frame height at `distance`. Width follows IMG_ASPECT.
+// fraction of the camera frame height at `distance`. Width follows SPRITE_ASPECT.
 // Both curtains share this (identical PNGs), so symmetry is automatic.
 function curtainSize(distance: number, scale: number, vFovRad: number): [number, number] {
   const frameH = 2 * distance * Math.tan(vFovRad / 2);
   const h = frameH * scale;
-  return [h * IMG_ASPECT, h];
+  return [h * SPRITE_ASPECT, h];
 }
 
 interface Props {
@@ -113,7 +108,7 @@ export function Curtains({ signalsRef }: Props) {
     // ease it for the actual displacement (smooth start + settle, reversible).
     const dir = Math.sign(target - slideRef.current);
     slideRef.current = Math.min(1, Math.max(0, slideRef.current + (dir * dt) / SLIDE_SECONDS));
-    const open = easeInOut(slideRef.current);
+    const open = easeInOutCubic(slideRef.current);
 
     if (leftRef.current) leftRef.current.position.x = xL - openDistance * open;
     if (rightRef.current) rightRef.current.position.x = xR + openDistance * open;
@@ -123,27 +118,11 @@ export function Curtains({ signalsRef }: Props) {
     <group>
       <mesh ref={leftRef} position={[xL, y, z]} renderOrder={1.9}>
         <planeGeometry args={[w, h]} />
-        <meshPhongMaterial
-          map={texLeft}
-          transparent
-          depthTest={false}
-          depthWrite={false}
-          color={TINT}
-          toneMapped={false}
-          shininess={0}
-        />
+        <meshPhongMaterial map={texLeft} color={STAGE_TINT} {...PAPER_MATERIAL} />
       </mesh>
       <mesh ref={rightRef} position={[xR, y, z]} renderOrder={1.9}>
         <planeGeometry args={[w, h]} />
-        <meshPhongMaterial
-          map={texRight}
-          transparent
-          depthTest={false}
-          depthWrite={false}
-          color={TINT}
-          toneMapped={false}
-          shininess={0}
-        />
+        <meshPhongMaterial map={texRight} color={STAGE_TINT} {...PAPER_MATERIAL} />
       </mesh>
     </group>
   );

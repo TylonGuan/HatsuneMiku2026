@@ -1,0 +1,198 @@
+# CASTING SHEET — fill in @sing / @show
+#
+#   @sing : who voices the line. Leave "Miku" for the main vocal.
+#   @show : which characters stand on stage during the line (comma-separated).
+#           Blank = nobody (Miku alone on stage).
+#   Names : Miku, Rin, Len, Luka, Meiko, Kaito
+#
+# [n] is the TextAlive PHRASE INDEX — this is the number the code uses, so annotate
+# against these. Phrases are in song order; the English line under each is the
+# current subtitle. Edit only what changes — defaults are fine to leave.
+#
+# NOTE: lines marked [PARALLEL] are a second voice sung *at the same time* as a
+# nearby main line — they already exist as their own phrases (no timestamps needed).
+# Lines marked (AD-LIB, needs time) are wordless backing NOT in the lyric data, so
+# to show anyone there I need a rough mm:ss range — fill in @time.
+
+# ── SCENE 1 ───────────────────────────────────────────────────────────────────
+[0] 一際輝きを放ち大通りを過ぎてく
+    Shining with a brilliance all its own, you pass along the main avenue.
+    @sing: Miku   @show: Miku
+
+[1] あなたに会いたくて集まる人
+    People gather, drawn by the desire to see you;
+    @sing: Miku   @show: Miku
+
+[2] そこに紛れているんだ
+    and there, I stand—lost among the crowd.
+    @sing: Miku   @show: Miku
+
+    (at んだ, (0:36) Meiko ad-libs woah oh)
+
+[3] あなたは手を振った
+    You waved your hand.
+    @sing: Miku   @show: Miku, Meiko
+
+    (at った, (0:40) Luka joins ad-lib for woah oh)
+
+[4] 手を振りかえし盛り上がった
+    I waved back, and the excitement surged.
+    @sing: Miku   @show: Miku, Meiko, Luka
+
+    (at った, (0:44) Rin and Len joins ad-lib for woah oh)
+
+[5] あなたは声を発した
+    You raised your voice.
+    @sing: Miku   @show: Miku, Meiko, Luka, Rin, Len
+
+    (at った, (0:48) Kaito joins ad-lib for woah oh)
+
+[6] 静かに耳を傾けて
+    I listened in silence,                                  # Group, Miku sings this
+    @sing: Miku   @show:  Miku, Meiko, Luka, Rin, Len, Kaito
+
+[7] 自分を重ねて聞いてた
+    hearing my own story echoed in your words.             # Group, Miku sings this
+    @sing: Miku   @show: Miku, Meiko, Luka, Rin, Len, Kaito
+
+[8] どれほどの苦しみも悲しみの向こうに                       # [PARALLEL] — currently the team's pink line, Team sings this part responding to [6]
+    Beyond the depths of all suffering and sorrow,
+    @sing: Meiko, Luka, Rin, Len, Kaito  @show: Meiko, Luka, Rin, Len, Kaito
+
+[9] きっと私の目指す私がいると信じ続けていた                  # [PARALLEL] — currently the team's pink line Team sings this part responding to [7]
+    I held fast to the belief that the person I aspire to be surely awaits me.
+    @sing: Meiko, Luka, Rin, Len, Kaito   @show: Meiko, Luka, Rin, Len, Kaito
+
+# ── TRANSITION ────────────────────────────────────────────────────────────────
+[10] 目覚めた僕の心がざわつく
+    My awakened heart begins to stir restlessly.
+    @sing: Miku   @show: None
+    (at つく, (1:10) ad-lib Meiko, Luka appears )
+
+[11] 未来は何処へ行く
+    Where is the future leading us?
+    @sing: Miku   @show: Meiko, Luka
+    (at 未来, (1:13) ad-lib Rin appears)
+
+# ── SCENE 2 (climax) ──────────────────────────────────────────────────────────
+[12] この世界を果てまで探そうとも                               # Currently I like how after Miku sings `この`, everyone appears in.
+    Even if I were to search this world to its very ends,
+    @sing: Miku, ALL   @show: All
+    
+
+[13] 僕の問いの答えはない
+    I would find no answer to my questions.
+    @sing: Miku, ALL   @show: All
+
+[14] 未来予知も記憶さえも
+    Neither foresight nor even memory itself
+    @sing: Miku, ALL   @show: All
+
+[15] 当てにならないようだ
+    seems to be a reliable guide.
+    @sing: Miku, ALL   @show: All
+
+[16] 目の前の色の無い世界を
+    within this colorless world right before your eyes,
+    @sing: Miku, ALL   @show: All
+
+[17] 自分なりにでも生きて
+    perhaps, if you simply live—in your own unique way—
+    @sing: Miku, ALL   @show: All
+
+[18] 色を放つ姿が探してたものかも
+    the radiance you emit might be exactly what I've been searching for.
+    @sing: Miku, ALL   @show: All
+
+    (AD-LIB "la la la" intermission after [18], needs time) (You can transition spin to switch the characters around, to prevent location staleness)
+    @show: ALL   @time: 1:47-1:59
+
+    (AD-LIB a long "laaaa" intermission after [18], needs time) (you should transition spin them out one by one until only Miku is left)
+    @show: ALL @time: 1:59-2:03
+
+# ── SCENE 3 ───────────────────────────────────────────────────────────────────
+[19] 分かってはいる
+    I know the truth.
+    @sing: Miku   @show:
+
+[20] 答えはとっくに出ていた
+    The answer was there all along.
+    @sing: Miku   @show:
+
+[21] 知らないふりして走り続けるよ
+    Yet I'll pretend not to know it—and keep on running.
+    @sing: Miku   @show:
+
+[22] まだ行けるよ　もう終わっているよ                         # two opposing voices in one line
+    "You can still go on!" "It's already over!"
+    @sing: Miku, ALL   @show: ALL
+
+[23] 期待してるよ　後悔するよ                                 # two opposing voices in one line
+    "I have high hopes for you!" "You'll live to regret this!"
+    @sing: Miku, ALL   @show: ALL
+
+[24] どこまでも平行線な声が叫んでいる
+    Voices—forever parallel, never to meet—are screaming out.
+    @sing: Miku, ALL   @show: ALL
+        (at いる, (2:25-2:30) All characters sing this word sustained, but then spins away at an even internval one by one, leaving only Miku left )
+
+
+# ── SCENE 4 ───────────────────────────────────────────────────────────────────
+[25] あなたが僕ならばどんな答えを出すでしょうか
+    If you were in my shoes, what answer would you find?
+    @sing: Miku   @show:
+
+[26] 僕があなたならば迷ってしまう
+    If I were in yours, I know I would surely lose my way.
+    @sing: Miku   @show:
+
+[27] どんな言葉も誰かの生きる証の切れ端でしかないのに
+    Every word spoken is merely a fragment—a scrap of someone's proof of existence—
+    @sing: Miku   @show:
+
+[28] どうして　揺さぶられるの
+    so why is my heart shaken so deeply?
+    @sing: Miku   @show:
+
+# ── SCENE 5 (climax reprise — the ~3:02 star cue is on [29]) ───────────────────
+[29] この世界を果てまで探そうとも                        # Currently I like how after Miku sings `この`, everyone appears in.
+    Even if I were to search this world to its very ends,
+    @sing: Miku, ALL   @show: ALL
+
+[30] 僕の問いの答えはない
+    I would find no answer to my questions.
+    @sing: Miku, ALL   @show: ALL
+
+[31] 手を伸ばして　目を凝らして　彷徨って
+    Reaching out, straining my eyes, wandering aimlessly...
+    @sing: Miku, ALL   @show: ALL
+
+[32] (見)えた目の前の色の無い世界を
+    within this colorless world that has now come into view,
+    @sing: Miku, ALL   @show: ALL
+
+[33] 自分なりにでも生きて
+    if you simply live—in your own unique way—
+    @sing: Miku, ALL   @show: ALL
+
+[34] 色を放つ姿が答えになるかも
+    perhaps that very existence will become the answer.
+    @sing: Miku, ALL   @show: ALL
+
+    (AD-LIB "la la la laaa" after [34], needs time) # I do like how all of them tweral at the start of this ad-lib, you can have transition to swap places around to be different from the previous line
+    @show: ALL   @time: 3:30–3:42
+
+# ── OUTRO ─────────────────────────────────────────────────────────────────────
+[35] まだ行くよ　迷わないよ
+    I will keep going. I will not lose my way.
+    @sing: Miku, ALL   @show: ALL
+
+[36] 期待してるよ　後悔しないよ
+    I have high hopes. I will have no regrets.
+    @sing: Miku, ALL   @show: ALL
+
+[37] どこにいても聞こえる声が叫んでいる
+    A voice—audible wherever I am—is screaming out.
+    @sing: Miku, ALL   @show: ALL
+
+    (at いる, (3:56-4:00) All characters sing this word sustained, but then spins away at an even internval one by one, leaving only Miku left )

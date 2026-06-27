@@ -1,4 +1,6 @@
 import { Bloom, EffectComposer } from "@react-three/postprocessing";
+import { Stats } from "@react-three/drei";
+import { useControls } from "leva";
 import { useRef } from "react";
 import type { MutableRefObject } from "react";
 import type { Player } from "textalive-app-api";
@@ -29,8 +31,22 @@ interface Props {
 export function Scene({ player, positionRef, isPlaying, ended, lyrics, song }: Props) {
   const signalsRef = useRef<Signals>(createSignals());
 
+  // House-light brightness. Raised from the original 0.85 so the stage doesn't
+  // read as too dark on dimmer displays; exposed here so it can be tuned live
+  // (and re-tuned per monitor) without a rebuild.
+  const { ambient, bloom } = useControls("Lighting", {
+    ambient: { value: 1.0, min: 0, max: 3, step: 0.05, label: "house lights" },
+    // On, but light: its visible benefit is mostly the climax-star sparkle, so it
+    // runs at half intensity. Still the heaviest GPU pass — toggle off for FPS.
+    bloom: { value: true, label: "bloom" },
+  });
+
   return (
     <>
+      {/* Dev-only FPS / frame-time / memory panel (top-left). Stripped from
+          production builds, same as the leva panel. */}
+      {process.env.NODE_ENV !== "production" && <Stats />}
+
       <color attach="background" args={["#0b0710"]} />
 
       <SignalsUpdater
@@ -42,10 +58,10 @@ export function Scene({ player, positionRef, isPlaying, ended, lyrics, song }: P
       />
 
       <CameraRig />
-      {/* House lights. 0.85 keeps non-spotlit areas at ~85% of TINT brightness —
-          a hair darker than the original unlit look, while still leaving room
-          for the spotlight to feel like an added hot spot on top. */}
-      <ambientLight intensity={0.85} />
+      {/* House lights — flat fill on the whole stage (the spotlight then adds a
+          hot spot on top). Tunable via the "Lighting" leva folder; default 1.25
+          keeps non-spotlit areas readable on dimmer displays. */}
+      <ambientLight intensity={ambient} />
       <Background signalsRef={signalsRef} />
       <Theater />
       <Spotlight signalsRef={signalsRef} />
@@ -56,9 +72,14 @@ export function Scene({ player, positionRef, isPlaying, ended, lyrics, song }: P
       {lyrics && <Lyrics lyrics={lyrics} signalsRef={signalsRef} song={song} />}
       <Stars signalsRef={signalsRef} />
 
-      <EffectComposer>
-        <Bloom intensity={0.9} luminanceThreshold={0.4} luminanceSmoothing={0.3} mipmapBlur />
-      </EffectComposer>
+      {/* multisampling defaults to 8 — heavy on mobile GPUs. 4 keeps edges clean
+          on the star/lyric geometry while halving the MSAA resolve cost. Gated on
+          the leva toggle so Bloom's cost can be measured / dropped for FPS. */}
+      {bloom && (
+        <EffectComposer multisampling={4}>
+          <Bloom intensity={0.45} luminanceThreshold={0.4} luminanceSmoothing={0.3} mipmapBlur />
+        </EffectComposer>
+      )}
     </>
   );
 }

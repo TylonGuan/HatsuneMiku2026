@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera, Vector3 } from "three";
+import { gyro } from "./gyro";
 
 // The camera orbits a fixed point in front of the stage on a short leash, so the
 // audience-eye framing is preserved: drag to look around a little, with a gentle
@@ -17,6 +18,12 @@ const DRAG_SPEED = 0.0009; // radians per pixel dragged
 // painted theatre layers, but only within a bound where the frustum still fits
 // inside the planes (so they don't reveal a black background past the edges).
 const BASE_FOV_DEG = 55; // matches the Canvas's initial fov in App.tsx
+// ── Starting zoom ────────────────────────────────────────────────────────────
+// FOV (degrees) the camera opens at. LOWER = more zoomed IN, HIGHER = zoomed OUT.
+// This is the "starting zoom" knob — change just this number. It's clamped into
+// the allowed range on mount, so a too-small/large value is pulled into
+// [MIN_FOV_DEG, max-zoom-out]. (BASE_FOV_DEG stays the plane-sizing reference.)
+const START_FOV_DEG = 60;
 const MIN_FOV_DEG = 35; // most zoomed in
 // These two MUST mirror their counterparts in Theater.tsx — the zoom-out
 // bound is derived from the plane MARGIN and image aspect ratio so the camera
@@ -49,8 +56,9 @@ export function CameraRig() {
   const goal = useRef({ az: 0, el: 0 }); // user-driven offset
   const cur = useRef({ az: 0, el: 0 }); // smoothed actual offset
   const clock = useRef(0);
-  /** Current target FOV in degrees (applied to the camera each frame). */
-  const fovRef = useRef(BASE_FOV_DEG);
+  /** Current target FOV in degrees (applied to the camera each frame). Opens at
+   *  START_FOV_DEG (the starting-zoom knob), then follows wheel/pinch zoom. */
+  const fovRef = useRef(START_FOV_DEG);
   /** True while two fingers are down — orbit is suspended in this state. */
   const pinching = useRef(false);
   /** Captured at touchstart for delta-based pinch zoom. */
@@ -141,12 +149,20 @@ export function CameraRig() {
 
   useFrame((_, dt) => {
     clock.current += dt;
-    const idle = !drag.current.active;
+    // Gyro tilt (mobile) adds onto the drag offset; clamp the sum to the rig's
+    // swing so tilt + drag together still can't expose the painted-plane edges.
+    const gAz = gyro.enabled ? gyro.az : 0;
+    const gEl = gyro.enabled ? gyro.el : 0;
+    const targetAz = clamp(goal.current.az + gAz, -AZ_LIMIT, AZ_LIMIT);
+    const targetEl = clamp(goal.current.el + gEl, -EL_LIMIT, EL_LIMIT);
+    // Idle drift only when neither dragging nor tilting — the tilt is its own
+    // motion, so the gentle auto-sway would just fight it.
+    const idle = !drag.current.active && !gyro.enabled;
     const driftAz = idle ? Math.sin(clock.current * 0.23) * 0.05 : 0;
     const driftEl = idle ? Math.sin(clock.current * 0.17 + 1.3) * 0.025 : 0;
     const k = Math.min(1, dt * 2.5);
-    cur.current.az += (goal.current.az + driftAz - cur.current.az) * k;
-    cur.current.el += (goal.current.el + driftEl - cur.current.el) * k;
+    cur.current.az += (targetAz + driftAz - cur.current.az) * k;
+    cur.current.el += (targetEl + driftEl - cur.current.el) * k;
 
     const { az, el } = cur.current;
     camera.position.set(

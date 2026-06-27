@@ -3,7 +3,7 @@ import type { IVideo, IPhrase, IWord, IChar } from "textalive-app-api";
 import type { PhraseTimings } from "../scene/lyrics/songs/answerMe/chorusTimings";
 import type { CharDatum, LyricData, PhraseDatum } from "./types";
 
-const SPACING = 0.5; // horizontal gap between settled characters
+const SPACING = 0.6; // horizontal gap between settled characters
 const LANE_GAP = 2.4; // vertical spacing between lanes of concurrent phrases
 // ms padding (~LEAD/TRAIL in Lyrics.tsx) used to decide if two phrases share the screen
 const OVERLAP_PAD = 1500;
@@ -12,10 +12,10 @@ const OVERLAP_PAD = 1500;
 // glowing line above the crowd, like raised glow sticks, then drift up and away. ---
 const SEAT_Z = -1.5; // depth of the audience (where glyphs are born)
 const LYRIC_Z = -3; // depth where the readable line settles
-const LINE_Y = 1.4; // height of the settled line, above the seat backs
+const LINE_Y = 1.0; // height of the settled line, above the seat backs
 const RISE_FROM_Y = -3.4; // glyphs start down in the seats
 const RISE_TO_Y = 5.2; // and exit upward, toward the stage lights
-const ARC = 0.9; // gentle upward curve toward the ends of the line
+const ARC = 1; // gentle upward curve toward the ends of the line
 
 interface Journey {
   entry: Vector3;

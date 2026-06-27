@@ -257,6 +257,32 @@ body,
   transform: translateY(0);
 }
 
+/* Transient camera-gesture hint (top center), shown once just after start. */
+.gesture-hint {
+  position: fixed;
+  left: 50%;
+  top: 7%;
+  transform: translateX(-50%) translateY(-8px);
+  max-width: min(86vw, 560px);
+  text-align: center;
+  padding: 10px 18px;
+  background: var(--ui-bg);
+  backdrop-filter: blur(8px);
+  border-radius: 999px;
+  font-size: clamp(0.8rem, 2.2vw, 1rem);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.6s ease,
+    transform 0.6s ease;
+  text-shadow: 0 0 12px rgba(255, 160, 210, 0.4);
+}
+
+.gesture-hint.visible {
+  opacity: 0.95;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* English subtitle */
 .subtitle {
   position: fixed;

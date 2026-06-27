@@ -8,6 +8,7 @@
 // `usePlayer`). `Lyrics.tsx` is song-agnostic — it just consumes the SongConfig.
 
 import type { ColorPoint, SongConfig } from "../../types";
+import { ANSWER_ME_AMP_WINDOWS, ANSWER_ME_CUES, ANSWER_ME_SINGERS } from "./casting";
 import { chorusTimingOverrides } from "./chorusTimings";
 
 // ── Voice colours ────────────────────────────────────────────────────────────
@@ -16,7 +17,7 @@ import { chorusTimingOverrides } from "./chorusTimings";
 // per voice so the cascade can apply them uniformly.
 
 /** #86cecb — Miku's signature teal. Used for every line by default. */
-const MIKU_TEAL: ColorPoint = { hue: 178, saturation: 60, lightness: 67 };
+const MIKU_TEAL: ColorPoint = { hue: 182, saturation: 74, lightness: 50 };
 
 /** #ffb7c5 — soft pink for the chorus voices (the other Cryptons). Applied
  *  per-phrase to the lines they actually sing. */
@@ -59,8 +60,15 @@ export const answerMeSong: SongConfig = {
     ...chorusPinkOverrides,
   },
 
-  // Phrases the chorus voices sing — pink lyrics + on-stage characters animate.
+  // Phrases the chorus voices sing — pink lyrics. (Casting below decides who's
+  // actually on stage; this is just the lyric colour for the team's own lines.)
   chorusVoicePhrases: CHORUS_VOICE_PHRASES,
+
+  // On-stage choreography (entrance/exit timeline) + who sings each phrase (for
+  // bobbing). Drives the <Chorus> cast — translated from casting.txt.
+  castingCues: ANSWER_ME_CUES,
+  singByPhrase: ANSWER_ME_SINGERS,
+  ampBobWindows: ANSWER_ME_AMP_WINDOWS,
 
   // ── Per-word overrides (key = 0-based global wordIndex) ────────────────────
   // Reserved for fine-grained emphasis like a single word flashing a colour.

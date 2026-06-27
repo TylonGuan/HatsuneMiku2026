@@ -5,6 +5,7 @@ import type { MouseEvent, PointerEvent } from "react";
 import { Scene } from "./scene/Scene";
 import { answerMeSong } from "./scene/lyrics/songs/answerMe";
 import { Overlay } from "./ui/Overlay";
+import { requestGyro } from "./scene/gyro";
 import { usePlayer } from "./textalive/usePlayer";
 
 /**
@@ -106,6 +107,10 @@ export function App() {
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
       if (moved > DRAG_THRESHOLD) return;
     }
+    // This tap is a user gesture — the only context iOS allows the gyroscope
+    // permission prompt from. Safe + idempotent on every platform (no-ops where
+    // unsupported or already granted).
+    void requestGyro();
     if (status === "ready") controls.toggle();
   };
 
@@ -127,7 +132,13 @@ export function App() {
 
       {/* Click/tap target that covers the entire 3D viewport. */}
       <div className="stage" onPointerDown={onPointerDown} onClick={onClick}>
-        <Canvas camera={camera} dpr={[1, 2]} gl={{ antialias: true }}>
+        {/* Perf: cap the pixel ratio at 1.5 (vs 2) — the single biggest lever
+            for fill-rate-bound rendering (the many full-screen transparent
+            layers + Bloom) on phones / weak GPUs, for a small softness cost.
+            antialias is off because the EffectComposer renders the 3D pass into
+            its own buffers and does MSAA there (see Scene's `multisampling`), so
+            context-level AA would just be wasted work. */}
+        <Canvas camera={camera} dpr={[1, 1.5]} gl={{ antialias: false }}>
           <Scene
             player={player}
             positionRef={positionRef}
