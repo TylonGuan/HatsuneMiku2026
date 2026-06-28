@@ -10,6 +10,11 @@ Meiko, and Kaito — sway, bob, and spin with the music under a live spotlight.
 
 By **Tylon Guan** · ### (◕‿◕) Hello from the USA 🇺🇸 (◕‿◕)
 
+<p align="center">
+  <img src="art/Screenshots/MainScreenshot.png" width="49%" alt="The pop-up-storybook theatre — Hatsune Miku on stage with glowing lyrics rising from the audience" />
+  <img src="art/Screenshots/MainScreenshot2.png" width="49%" alt="The Crypton cast performing on the sketched stage under the spotlight" />
+</p>
+
 ---
 
 ## For the judges (60-second orientation)
