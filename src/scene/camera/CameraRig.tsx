@@ -2,22 +2,29 @@ import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { PerspectiveCamera, Vector3 } from "three";
 import { gyro } from "./gyro";
+import {
+  CAMERA_AZ_LIMIT as AZ_LIMIT,
+  CAMERA_EL_LIMIT as EL_LIMIT,
+  PLANE_IMG_ASPECT,
+  PLANE_MARGIN,
+  REFERENCE_FOV_DEG as BASE_FOV_DEG,
+} from "../stageMetrics";
 
 // The camera orbits a fixed point in front of the stage on a short leash, so the
 // audience-eye framing is preserved: drag to look around a little, with a gentle
 // idle drift when you let go. Limits + the plane oversize keep edges off-screen.
 const TARGET = new Vector3(0, 0, -10);
-const RADIUS = 18; // distance from TARGET to the camera (=> base z ≈ 8)
+const RADIUS = 18; // distance from TARGET to the camera (=> base z = CAMERA_DISTANCE_Z = 8)
 const BASE_Y = 1.0; // seated eye height above the look-at point
-const AZ_LIMIT = 0.22; // max horizontal swing (radians, ~12.5°)
-const EL_LIMIT = 0.12; // max vertical swing (radians, ~7°)
+// AZ_LIMIT / EL_LIMIT (max orbit swing) are shared with `gyro` via stageMetrics.
 const DRAG_SPEED = 0.0009; // radians per pixel dragged
 
 // ── Zoom (pinch / scroll wheel) ──────────────────────────────────────────────
 // The user can widen or narrow the camera frustum to see more or less of the
 // painted theatre layers, but only within a bound where the frustum still fits
 // inside the planes (so they don't reveal a black background past the edges).
-const BASE_FOV_DEG = 55; // matches the Canvas's initial fov in App.tsx
+// BASE_FOV_DEG is the shared REFERENCE_FOV_DEG (stageMetrics.ts) — the plane-
+// sizing reference, matching the Canvas's initial fov in App.tsx.
 // ── Starting zoom ────────────────────────────────────────────────────────────
 // FOV (degrees) the camera opens at. LOWER = more zoomed IN, HIGHER = zoomed OUT.
 // This is the "starting zoom" knob — change just this number. It's clamped into
@@ -25,12 +32,9 @@ const BASE_FOV_DEG = 55; // matches the Canvas's initial fov in App.tsx
 // [MIN_FOV_DEG, max-zoom-out]. (BASE_FOV_DEG stays the plane-sizing reference.)
 const START_FOV_DEG = 60;
 const MIN_FOV_DEG = 35; // most zoomed in
-// These two MUST mirror their counterparts in Theater.tsx — the zoom-out
-// bound is derived from the plane MARGIN and image aspect ratio so the camera
-// frustum can never exceed the plane it's looking at. If you change either,
-// also change the matching constant there.
-const PLANE_MARGIN = 1.4;
-const PLANE_IMG_ASPECT = 3432 / 2429;
+// The zoom-out bound is derived from the plane oversize (PLANE_MARGIN) and image
+// aspect (PLANE_IMG_ASPECT) so the camera frustum can never exceed the plane it's
+// looking at. Both are shared with Theater via stageMetrics.ts.
 const WHEEL_SENSITIVITY = 0.05; // degrees of FOV per unit of wheel delta
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -112,10 +116,10 @@ export function CameraRig() {
     const onTouchMove = (e: TouchEvent) => {
       if (!pinching.current || e.touches.length < 2) return;
       e.preventDefault();
-      const d = fingerDist(e.touches[0], e.touches[1]);
+      const dist = fingerDist(e.touches[0], e.touches[1]);
       // ratio < 1 → fingers spread → zoom in (smaller FOV).
       // ratio > 1 → fingers close → zoom out (larger FOV).
-      const ratio = pinchStart.current.dist / Math.max(1, d);
+      const ratio = pinchStart.current.dist / Math.max(1, dist);
       fovRef.current = clampFov(pinchStart.current.fov * ratio);
     };
     const onTouchEnd = (e: TouchEvent) => {

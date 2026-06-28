@@ -6,23 +6,21 @@ import type { RefObject } from "react";
 import { SRGBColorSpace } from "three";
 import type { Mesh, Texture } from "three";
 
-import curtainLeftUrl from "../../art/Scene1/Curtains L.png";
-import curtainRightUrl from "../../art/Scene1/Curtains R.png";
-import { easeInOutCubic } from "./ease";
-import { PAPER_MATERIAL, SPRITE_ASPECT, STAGE_TINT } from "./sketch";
-import type { Signals } from "./Signals";
+import curtainLeftUrl from "../../../art/Theater/Curtains L.png";
+import curtainRightUrl from "../../../art/Theater/Curtains R.png";
+import { easeInOutCubic } from "../common/ease";
+import { PAPER_MATERIAL, SPRITE_ASPECT, STAGE_TINT } from "../common/sketch";
+import { CAMERA_BASE_Z, REFERENCE_FOV_DEG } from "../stageMetrics";
+import type { Signals } from "../Signals";
 
 // Both curtains are the same transparent cutout PNG size (4:3, see SPRITE_ASPECT),
 // each drawn to fit the stage opening of the theater cutout (the left drape on one
 // canvas, the right on the other). Sized at their native aspect — NOT stretched to
 // cover the whole camera frame — so they match the opening rather than the theater.
-
-const CAMERA_BASE_Z = 7; // keep in sync with CameraRig / Theater
-
-// Plane-sizing reference — fixed FOV so the curtains don't shrink with the
-// viewport (mirrors Theater.tsx). `scale` below is expressed as a fraction of
-// this reference frame's height at the curtain's depth.
-const REFERENCE_FOV_DEG = 55;
+//
+// CAMERA_BASE_Z + the fixed REFERENCE_FOV_DEG (so the curtains don't shrink with
+// the viewport) are shared via stageMetrics.ts. `scale` below is expressed as a
+// fraction of this reference frame's height at the curtain's depth.
 
 // ── Open / close motion ──────────────────────────────────────────────────────
 // Seconds for a full part or close. A linear timeline advances at this rate and
@@ -99,14 +97,14 @@ export function Curtains({ signalsRef }: Props) {
   const slideRef = useRef(0);
 
   useFrame((_, dt) => {
-    const s = signalsRef.current;
-    if (s?.playing) startedRef.current = true;
+    const signals = signalsRef.current;
+    if (signals?.playing) startedRef.current = true;
     // Closed unless we've started and haven't yet hit the end of the song.
-    const target = startedRef.current && !s?.ended ? 1 : 0;
+    const openTarget = startedRef.current && !signals?.ended ? 1 : 0;
 
     // Advance the linear timeline toward the target at a constant rate, then
     // ease it for the actual displacement (smooth start + settle, reversible).
-    const dir = Math.sign(target - slideRef.current);
+    const dir = Math.sign(openTarget - slideRef.current);
     slideRef.current = Math.min(1, Math.max(0, slideRef.current + (dir * dt) / SLIDE_SECONDS));
     const open = easeInOutCubic(slideRef.current);
 

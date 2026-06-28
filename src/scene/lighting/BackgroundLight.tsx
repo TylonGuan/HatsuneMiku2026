@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { folder, useControls } from "leva";
 import { Object3D } from "three";
 import type { SpotLight as ThreeSpotLight } from "three";
-import type { Signals } from "./Signals";
+import type { Signals } from "../Signals";
 
 /**
  * Three.js render-layer index that the background lights illuminate.
@@ -76,7 +76,7 @@ export function BackgroundLight({ signalsRef }: Props) {
   } = useControls("Background lights", {
     // Mirrored placement: both lights share Y/Z; X is ±xOffset.
     source: folder(
-      { 
+      {
         xOffset: { value: 14, min: 0, max: 25, step: 0.1, label: "±x offset" },
         sourceY: { value: 17, min: -5, max: 25, step: 0.1, label: "y" },
         sourceZ: { value: -9, min: -25, max: -2, step: 0.1, label: "z" },

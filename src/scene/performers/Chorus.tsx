@@ -6,17 +6,26 @@ import { folder, useControls } from "leva";
 import { DoubleSide, SRGBColorSpace } from "three";
 import type { Mesh, Texture } from "three";
 
-import kaitoUrl from "../../art/KaitoCutout/Original Kaito.png";
-import lenUrl from "../../art/LenCutout/Len.png";
-import lukaUrl from "../../art/LukaCutout/Original Luka.png";
-import meikoUrl from "../../art/MeikoCutout/Meiko.png";
-import rinUrl from "../../art/RinCutout/Rin.png";
-import { easeOutBack, smoothstep } from "./ease";
-import { heightFactor, pulseShape } from "./Miku";
-import { PAPER_MATERIAL, SPRITE_ASPECT } from "./sketch";
-import type { Signals } from "./Signals";
-import type { CharDatum, LyricData } from "../textalive/types";
-import type { CastAnchor, SongConfig } from "./lyrics/types";
+import kaitoUrl from "../../../art/KaitoCutout/Kaito.png";
+import lenUrl from "../../../art/LenCutout/Len.png";
+import lukaUrl from "../../../art/LukaCutout/Luka.png";
+import meikoUrl from "../../../art/MeikoCutout/Meiko.png";
+import rinUrl from "../../../art/RinCutout/Rin.png";
+import { easeOutBack, smoothstep } from "../common/ease";
+import {
+  BEATS_PER_SWAY,
+  heightFactor,
+  pulseShape,
+  SWAY_FREQ_HZ,
+  SWAY_PHASE,
+  swayCycles,
+} from "./performerMotion";
+import { PAPER_MATERIAL, SPRITE_ASPECT } from "../common/sketch";
+import { compileCastingIntervals } from "../lyrics/casting/compile";
+import type { Signals } from "../Signals";
+import type { CharDatum, LyricData } from "../../textalive/types";
+import type { SongConfig } from "../lyrics/types";
+import type { TeamName } from "../lyrics/songs/answerMe/casting";
 
 // Paint order: behind Miku (1.8) but in front of the stage floor / background.
 const CHORUS_RENDER_ORDER = 1.5;
@@ -34,43 +43,48 @@ const LYRIC_SWEEP = 0.5;
 /** How fast each member's singing gain eases in once they're on stage. */
 const CHORUS_GAIN_RATE = 2.5;
 const CHORUS_SWAY_AMPLITUDE = 0.1;
-/** Beats per full sway cycle — tempo-locked, identical to Miku's so the team
- *  sways in time with her. */
-const CHORUS_BEATS_PER_SWAY = 2.67;
-/** Fallback sway frequency (Hz) for beatless gaps, matching Miku's fallback. */
-const CHORUS_SWAY_FREQ_HZ = 0.5;
 /** Sway floor so they keep a gentle idle lean between sung syllables. */
 const CHORUS_SWAY_IDLE = 0.25;
-/** Sway phase — EQUAL to Miku's (`+ 1.0` in Miku.tsx) so the team syncs with her. */
-const CHORUS_SWAY_PHASE = 1.0;
+// Tempo lock, beatless fallback, and phase are shared with Miku via `./motion`
+// (BEATS_PER_SWAY / SWAY_FREQ_HZ / SWAY_PHASE) so the team sways in sync with her.
 
 // ── Twirl tuning ─────────────────────────────────────────────────────────────
 const ENTER_DURATION = 0.8; // grow + spin in
 const EXIT_DURATION = 0.6; // shrink + spin out
-/** Bridge sub-second gaps between a member's cues so they don't flicker out/in. */
-const JOIN_MS = 900;
+
+/** A chorus member's fixed home placement on stage. `name` is typed against the
+ *  casting roster ({@link TeamName}), so a typo here — or a name that doesn't
+ *  match the casting cues / singer map — is a compile error, not a silent no-show. */
+interface TeamMember {
+  name: TeamName;
+  url: string;
+  x: number;
+  y: number;
+  z: number;
+  scale: number;
+}
 
 // One entry per team member, with a FIXED home position (so e.g. Rin is always in
 // the same spot whenever she's cast). Defaults are the original tuned placements;
 // arrange each live via its leva folder, then copy values back here.
-const TEAM = [
+const TEAM: readonly TeamMember[] = [
   { name: "Rin", url: rinUrl, x: -4.65, y: -0.05, z: -17, scale: 7.5 },
   { name: "Len", url: lenUrl, x: 6.1, y: 0, z: -17, scale: 7.5 },
   { name: "Luka", url: lukaUrl, x: 4.6, y: 1.85, z: -19, scale: 7.5 },
   { name: "Meiko", url: meikoUrl, x: -3.3, y: 2, z: -18.5, scale: 7.5 },
   { name: "Kaito", url: kaitoUrl, x: 0.45, y: 2.5, z: -19, scale: 7.5 },
-] as const;
+];
 
 // One collapsed leva folder per member (x / y / z / scale).
 const memberControls = Object.fromEntries(
-  TEAM.map((m) => [
-    m.name,
+  TEAM.map((member) => [
+    member.name,
     folder(
       {
-        [`${m.name}-x`]: { value: m.x, min: -20, max: 20, step: 0.05 },
-        [`${m.name}-y`]: { value: m.y, min: -8, max: 8, step: 0.05 },
-        [`${m.name}-z`]: { value: m.z, min: -35, max: -2, step: 0.1 },
-        [`${m.name}-scale`]: { value: m.scale, min: 0.5, max: 12, step: 0.05 },
+        [`${member.name}-x`]: { value: member.x, min: -20, max: 20, step: 0.05 },
+        [`${member.name}-y`]: { value: member.y, min: -8, max: 8, step: 0.05 },
+        [`${member.name}-z`]: { value: member.z, min: -35, max: -2, step: 0.1 },
+        [`${member.name}-scale`]: { value: member.scale, min: 0.5, max: 12, step: 0.05 },
       },
       { collapsed: true },
     ),
@@ -85,10 +99,10 @@ type Phase = "hidden" | "in" | "active" | "out";
  * chars. Same word-blended window + pulse shape as Miku's bob.
  */
 function bobForSyllable(chars: CharDatum[], pos: number): number {
-  const arriveOf = (c: CharDatum) => c.wordStart + (c.charStart - c.wordStart) * LYRIC_SWEEP;
-  for (const c of chars) {
-    const arrive = arriveOf(c);
-    const leave = c.wordEnd + (c.charEnd - c.wordEnd) * LYRIC_SWEEP;
+  const arriveOf = (char: CharDatum) => char.wordStart + (char.charStart - char.wordStart) * LYRIC_SWEEP;
+  for (const char of chars) {
+    const arrive = arriveOf(char);
+    const leave = char.wordEnd + (char.charEnd - char.wordEnd) * LYRIC_SWEEP;
     if (pos >= arrive && pos < leave) {
       const durationMs = leave - arrive;
       const phase = (pos - arrive) / Math.max(1, durationMs);
@@ -130,7 +144,7 @@ interface Props {
  * NOT yet encoded: the la-la-la POSITION SWAPS (need dynamic home slots).
  */
 export function Chorus({ signalsRef, lyrics, song }: Props) {
-  const textures = useTexture(TEAM.map((m) => m.url)) as Texture[];
+  const textures = useTexture(TEAM.map((member) => member.url)) as Texture[];
   const ctrl = useControls("Chorus", {
     tint: { value: DEFAULT_TINT },
     ...memberControls,
@@ -138,51 +152,16 @@ export function Chorus({ signalsRef, lyrics, song }: Props) {
   const tint = ctrl.tint as string;
 
   // Compile the cue timeline into per-member on-stage intervals (ms). Recomputed
-  // only when the lyrics (phrase times) or cues change.
-  const presence = useMemo(() => {
-    const byName: Record<string, [number, number][]> = {};
-    for (const m of TEAM) byName[m.name] = [];
-    const phraseByIndex = new Map((lyrics?.phrases ?? []).map((p) => [p.index, p]));
-    const resolve = (a: CastAnchor): number | null => {
-      if (typeof a === "number") return a;
-      const p = phraseByIndex.get(a.phrase);
-      if (!p) return null;
-      return (a.at === "end" ? p.endTime : p.startTime) + (a.offset ?? 0);
-    };
-    for (const cue of song.castingCues ?? []) {
-      const from = resolve(cue.from);
-      const to = resolve(cue.to);
-      if (from == null || to == null) continue;
-      const n = cue.who.length;
-      // Staggered exit: hold together for `staggerHoldMs`, then spin out group by
-      // group (groups of `staggerGroup`) evenly across the rest of the window.
-      const hold = cue.staggerHoldMs ?? 0;
-      const groupSize = Math.max(1, cue.staggerGroup ?? 1);
-      const numGroups = Math.ceil(n / groupSize);
-      const spread = Math.max(0, (cue.staggerOutMs ?? 0) - hold);
-      cue.who.forEach((name, k) => {
-        if (!byName[name]) return;
-        let end = to;
-        if (cue.staggerOutMs) {
-          const g = Math.floor(k / groupSize);
-          const frac = numGroups > 1 ? g / (numGroups - 1) : 0;
-          end = to + hold + spread * frac;
-        }
-        byName[name].push([from, end]);
-      });
-    }
-    for (const name of Object.keys(byName)) {
-      const sorted = byName[name].sort((a, b) => a[0] - b[0]);
-      const merged: [number, number][] = [];
-      for (const iv of sorted) {
-        const last = merged[merged.length - 1];
-        if (last && iv[0] - last[1] <= JOIN_MS) last[1] = Math.max(last[1], iv[1]);
-        else merged.push([iv[0], iv[1]]);
-      }
-      byName[name] = merged;
-    }
-    return byName;
-  }, [lyrics, song.castingCues]);
+  // only when the lyrics (phrase times) or cues change. See `./lyrics/casting/compile`.
+  const presence = useMemo(
+    () =>
+      compileCastingIntervals(
+        song.castingCues ?? [],
+        lyrics?.phrases ?? [],
+        TEAM.map((member) => member.name),
+      ),
+    [lyrics, song.castingCues],
+  );
 
   // Per-phrase chars for the sung phrases, so the bob can target the line the team
   // is actually singing (not whatever else overlaps).
@@ -193,7 +172,7 @@ export function Chorus({ signalsRef, lyrics, song }: Props) {
       const idx = Number(idxStr);
       map.set(
         idx,
-        chars.filter((c) => c.phraseIndex === idx),
+        chars.filter((char) => char.phraseIndex === idx),
       );
     }
     return map;
@@ -209,19 +188,18 @@ export function Chorus({ signalsRef, lyrics, song }: Props) {
   const gainRef = useRef<number[]>(TEAM.map(() => 0));
 
   useFrame((_, dt) => {
-    const s = signalsRef.current;
-    if (!s) return;
-    const d = Math.min(dt, 0.05);
-    const pos = s.pos;
+    const signals = signalsRef.current;
+    if (!signals) return;
+    const delta = Math.min(dt, 0.05);
+    const pos = signals.pos;
     // Inside a lyric-free "la la la" window, the team bobs to the vocal amplitude
     // instead of to lyric syllables (there are none).
-    const inAmp = (song.ampBobWindows ?? []).some(([a, b]) => pos >= a && pos < b);
+    const inAmp = (song.ampBobWindows ?? []).some(([start, end]) => pos >= start && pos < end);
 
-    // Tempo-locked sway base (identical formula to Miku's, so they're in sync).
+    // Tempo-locked sway base — shared `swayCycles` keeps the team in sync with Miku.
     const tSec = pos * 0.001;
-    const swayCycles =
-      s.beatPhase >= 0 ? s.beats / CHORUS_BEATS_PER_SWAY : tSec * CHORUS_SWAY_FREQ_HZ;
-    const swayBase = Math.sin(swayCycles * Math.PI * 2 + CHORUS_SWAY_PHASE);
+    const cycles = swayCycles(signals.beats, signals.beatPhase, tSec, BEATS_PER_SWAY, SWAY_FREQ_HZ);
+    const swayBase = Math.sin(cycles * Math.PI * 2 + SWAY_PHASE);
 
     // Which sung phrase is active, who sings it, and its current-syllable bob.
     // Only these members bob; everyone else on stage just sways.
@@ -229,11 +207,11 @@ export function Chorus({ signalsRef, lyrics, song }: Props) {
     let singBob = 0;
     const singByPhrase = song.singByPhrase;
     if (singByPhrase) {
-      for (const p of lyrics?.phrases ?? []) {
-        const sg = singByPhrase[p.index];
-        if (sg && pos >= p.startTime && pos < p.endTime) {
-          singers = new Set(sg);
-          singBob = bobForSyllable(charsBySungPhrase.get(p.index) ?? [], pos);
+      for (const phrase of lyrics?.phrases ?? []) {
+        const phraseSingers = singByPhrase[phrase.index];
+        if (phraseSingers && pos >= phrase.startTime && pos < phrase.endTime) {
+          singers = new Set(phraseSingers);
+          singBob = bobForSyllable(charsBySungPhrase.get(phrase.index) ?? [], pos);
           break;
         }
       }
@@ -247,8 +225,8 @@ export function Chorus({ signalsRef, lyrics, song }: Props) {
 
       // Cast right now?
       let present = false;
-      for (const iv of presence[name]) {
-        if (pos >= iv[0] && pos < iv[1]) {
+      for (const interval of presence[name]) {
+        if (pos >= interval[0] && pos < interval[1]) {
           present = true;
           break;
         }
@@ -275,7 +253,7 @@ export function Chorus({ signalsRef, lyrics, song }: Props) {
       // ── Entrance / exit twirl: owns scale + Y-rotation, suppresses bob/sway ──
       if (ph === "in" || ph === "out") {
         const dur = ph === "in" ? ENTER_DURATION : EXIT_DURATION;
-        twirlRef.current[i] += d / dur;
+        twirlRef.current[i] += delta / dur;
         const t = Math.min(1, twirlRef.current[i]);
         const spin = smoothstep(t) * Math.PI * 2;
         if (ph === "in") {
@@ -301,7 +279,7 @@ export function Chorus({ signalsRef, lyrics, song }: Props) {
       }
 
       // ── Active: sway always; bob only if this member sings the current line ──
-      gainRef.current[i] += (1 - gainRef.current[i]) * Math.min(1, d * CHORUS_GAIN_RATE);
+      gainRef.current[i] += (1 - gainRef.current[i]) * Math.min(1, delta * CHORUS_GAIN_RATE);
       const gain = gainRef.current[i];
       const swayGain = CHORUS_SWAY_IDLE + (1 - CHORUS_SWAY_IDLE) * gain;
       // A sung LINE takes priority over the la-la ad-lib: while a line is active
@@ -312,7 +290,7 @@ export function Chorus({ signalsRef, lyrics, song }: Props) {
           ? singBob * gain
           : 0
         : inAmp
-          ? s.vocalBob * CHORUS_AMP_BOB_AMPLITUDE * gain
+          ? signals.vocalBob * CHORUS_AMP_BOB_AMPLITUDE * gain
           : 0;
       mesh.scale.setScalar(1);
       mesh.rotation.y = 0;
@@ -323,18 +301,18 @@ export function Chorus({ signalsRef, lyrics, song }: Props) {
 
   return (
     <group>
-      {TEAM.map((m, i) => {
+      {TEAM.map((member, i) => {
         const tex = textures[i];
         tex.colorSpace = SRGBColorSpace;
-        const x = ctrl[`${m.name}-x`] as number;
-        const y = ctrl[`${m.name}-y`] as number;
-        const z = ctrl[`${m.name}-z`] as number;
-        const scale = ctrl[`${m.name}-scale`] as number;
+        const x = ctrl[`${member.name}-x`] as number;
+        const y = ctrl[`${member.name}-y`] as number;
+        const z = ctrl[`${member.name}-z`] as number;
+        const scale = ctrl[`${member.name}-scale`] as number;
         const h = scale;
         const w = h * SPRITE_ASPECT;
         return (
           <mesh
-            key={m.name}
+            key={member.name}
             ref={(mesh) => {
               meshRefs.current[i] = mesh;
             }}

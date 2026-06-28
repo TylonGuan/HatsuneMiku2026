@@ -4,8 +4,8 @@ import { useFrame } from "@react-three/fiber";
 import { folder, useControls } from "leva";
 import { Object3D } from "three";
 import type { SpotLight as ThreeSpotLight } from "three";
-import { easeOutCubic } from "./ease";
-import type { Signals } from "./Signals";
+import { easeOutCubic } from "../common/ease";
+import type { Signals } from "../Signals";
 
 /** Seconds for the spotlight to fade from black to full intensity on first play. */
 const FADE_IN_SECONDS = 2.5;
@@ -118,13 +118,13 @@ export function Spotlight({ signalsRef }: Props) {
   // Per-frame: advance the fade and drive the live intensity. We mutate the
   // light directly (vs. a re-render per frame) so this stays cheap.
   useFrame((_, dt) => {
-    const s = signalsRef.current;
-    if (s?.playing) hasStartedRef.current = true;
+    const signals = signalsRef.current;
+    if (signals?.playing) hasStartedRef.current = true;
     // Lit while the show is running; dark before first play and after the song
     // ends. Fade in/out use different durations, so pick the rate by direction.
-    const target = hasStartedRef.current && !s?.ended ? 1 : 0;
-    const rate = target > fadeRef.current ? FADE_IN_SECONDS : FADE_OUT_SECONDS;
-    const dir = Math.sign(target - fadeRef.current);
+    const fadeTarget = hasStartedRef.current && !signals?.ended ? 1 : 0;
+    const rate = fadeTarget > fadeRef.current ? FADE_IN_SECONDS : FADE_OUT_SECONDS;
+    const dir = Math.sign(fadeTarget - fadeRef.current);
     fadeRef.current = Math.min(1, Math.max(0, fadeRef.current + (dir * dt) / rate));
     const eased = easeOutCubic(fadeRef.current);
     if (lightRef.current) lightRef.current.intensity = intensity * eased;

@@ -11,7 +11,7 @@ import {
   getWordPhase,
   isChorus,
 } from "../textalive/analysis";
-import { clamp01 } from "./color";
+import { clamp01 } from "./common/color";
 
 // Climax intensity — a smoothed 0..1 that ramps up over the late, final-chorus
 // stretch of the song. Drives the background warm-up (see Background.tsx).
@@ -94,16 +94,16 @@ export function SignalsUpdater({ player, positionRef, isPlaying, ended, signalsR
   const prevBeatStartRef = useRef(-1);
 
   useFrame(() => {
-    const s = signalsRef.current;
-    if (!s) return;
-    s.playing = isPlaying;
-    s.ended = ended;
+    const signals = signalsRef.current;
+    if (!signals) return;
+    signals.playing = isPlaying;
+    signals.ended = ended;
 
     if (!player || !player.video) {
-      s.beat = Math.max(0, s.beat - 0.05);
-      s.beatPhase = -1;
-      s.wordPhase = -1;
-      s.phrasePhase = -1;
+      signals.beat = Math.max(0, signals.beat - 0.05);
+      signals.beatPhase = -1;
+      signals.wordPhase = -1;
+      signals.phrasePhase = -1;
       return;
     }
 
@@ -123,10 +123,10 @@ export function SignalsUpdater({ player, positionRef, isPlaying, ended, signalsR
     positionRef.current = pos;
 
     const progress = getProgress(player, pos);
-    s.pos = pos;
-    s.sat = clamp01(progress * 1.2);
-    s.beat = getBeatAmp(player, pos);
-    s.beatPhase = getBeatPhase(player, pos);
+    signals.pos = pos;
+    signals.sat = clamp01(progress * 1.2);
+    signals.beat = getBeatAmp(player, pos);
+    signals.beatPhase = getBeatPhase(player, pos);
 
     // Continuous beat position (index + intra-beat phase), so motion can lock to
     // the song's tempo instead of wall-clock time. Bump the index whenever a new
@@ -138,23 +138,25 @@ export function SignalsUpdater({ player, positionRef, isPlaying, ended, signalsR
         if (prevBeatStartRef.current >= 0) beatIndexRef.current += 1;
         prevBeatStartRef.current = beat.startTime;
       }
-      s.beats = beatIndexRef.current + clamp01((pos - beat.startTime) / beat.duration);
+      signals.beats = beatIndexRef.current + clamp01((pos - beat.startTime) / beat.duration);
     }
 
-    s.wordPhase = getWordPhase(player, pos);
-    s.phrasePhase = getPhrasePhase(player, pos);
-    s.vocal = getVocalAmp(player, pos);
+    signals.wordPhase = getWordPhase(player, pos);
+    signals.phrasePhase = getPhrasePhase(player, pos);
+    signals.vocal = getVocalAmp(player, pos);
     // Peak-follow the raw amplitude: rise fast to a new peak, fall moderately.
-    s.vocalSmooth +=
-      (s.vocal - s.vocalSmooth) * (s.vocal > s.vocalSmooth ? VOCAL_ATTACK : VOCAL_DECAY);
+    signals.vocalSmooth +=
+      (signals.vocal - signals.vocalSmooth) *
+      (signals.vocal > signals.vocalSmooth ? VOCAL_ATTACK : VOCAL_DECAY);
     // Gate out the low-level floor and expand the rest, so the bob tracks the
     // voice (each ad-lib note) and not the constant backing.
-    s.vocalBob = clamp01((s.vocalSmooth - VOCAL_FLOOR) / (1 - VOCAL_FLOOR));
-    s.chorus = isChorus(player, pos);
+    signals.vocalBob = clamp01((signals.vocalSmooth - VOCAL_FLOOR) / (1 - VOCAL_FLOOR));
+    signals.chorus = isChorus(player, pos);
 
     // Climax = late-song chorus; ease in/out so transitions feel intentional.
-    const climaxTarget = s.chorus && progress > CLIMAX_PROGRESS ? 1 : 0;
-    s.clim += (climaxTarget - s.clim) * (climaxTarget > s.clim ? CLIMAX_FADE_IN : CLIMAX_FADE_OUT);
+    const climaxTarget = signals.chorus && progress > CLIMAX_PROGRESS ? 1 : 0;
+    signals.clim +=
+      (climaxTarget - signals.clim) * (climaxTarget > signals.clim ? CLIMAX_FADE_IN : CLIMAX_FADE_OUT);
   });
 
   return null;

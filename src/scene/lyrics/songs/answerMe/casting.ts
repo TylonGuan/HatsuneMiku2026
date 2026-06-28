@@ -1,5 +1,5 @@
 // ─── Stage casting for "Answer Me" ───────────────────────────────────────────
-// Translated by hand from casting.txt (a reference doc — NOT read at runtime).
+// The choreography for this song, authored by hand from its structure.
 //
 // Two pieces:
 //   1. ANSWER_ME_CUES   — WHEN each member is on stage (entrance/exit timeline).
@@ -9,9 +9,6 @@
 // Times are absolute ms or phrase-anchored ({ phrase, at:"start"|"end", offset }).
 // `staggerOutMs` makes a group exit ONE BY ONE, spread evenly across
 // [to, to + staggerOutMs] — the sustained-note spin-outs that leave only Miku.
-//
-// NOT yet encoded: the la-la-la POSITION SWAPS (those need dynamic home slots and
-// are the next step). A few exit times are approximate — see the flagged ones.
 
 import type { CastCue } from "../../types";
 

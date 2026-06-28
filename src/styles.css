@@ -236,25 +236,22 @@ body,
   white-space: nowrap;
 }
 
-/* Skip-to-lyrics button, bottom-right */
-.skip {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(8px);
-  transition:
-    opacity 0.5s ease,
-    transform 0.5s ease;
-  background: var(--ui-bg);
-  backdrop-filter: blur(8px);
+/* Subtitle (CC) toggle — a labelled button inside the transport bubble (so the
+   triangle handle shows/hides it with the rest of the chrome). Uses .btn for the
+   base look, overriding the round emoji shape with a small text pill. */
+.cc {
+  width: auto;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
 
-.skip.visible {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
+/* Off state: dimmed + struck through. */
+.cc:not(.on) {
+  opacity: 0.45;
+  text-decoration: line-through;
 }
 
 /* Transient camera-gesture hint (top center), shown once just after start. */
@@ -328,18 +325,28 @@ body,
 }
 
 /* ── Narrow viewport (phones in portrait) ─────────────────────────────────
-   The default layout puts .controls, .seekbar, and .skip in the same row at
-   `bottom: 16px`. Below ~600 px wide the centered seekbar's edge collides
-   with the left-anchored controls (seek bar shrinks to 46vw but the controls
-   cluster stays a fixed ~140 px). Stack the seekbar onto its own row above
-   the controls / skip row, widen it for thumb scrubbing, and push the
-   subtitle up so it still clears everything. */
+   Below ~600 px wide the centered seekbar's edge collides with the
+   left-anchored controls (the seek bar shrinks to 46vw but the controls
+   cluster stays a fixed ~140 px), so lift the seekbar onto its own row and
+   widen it for thumb scrubbing. */
 @media (max-width: 600px) {
   .seekbar {
     bottom: 64px;
     width: min(85vw, 440px);
   }
+}
+
+/* ── Subtitle placement on phones (either orientation) ────────────────────
+   The settled lyric line sits in the lower-mid band, so a bottom subtitle
+   covers it. This is driven by screen *size*, not just width: portrait phones
+   are narrow (max-width), landscape phones are short (max-height) — both
+   overlap. In either case move the subtitle to the TOP, where it only ever
+   crosses the dim, exiting glyphs rather than the bright active line. */
+@media (max-width: 600px), (max-height: 500px) {
   .subtitle {
-    bottom: 112px;
+    top: 10%;
+    bottom: auto;
+    /* Lives at the top now, so its hidden state slides down into place. */
+    transform: translateX(-50%) translateY(-10px);
   }
 }

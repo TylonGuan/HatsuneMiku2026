@@ -1,7 +1,6 @@
 node_modules
 dist
 .parcel-cache
-.claude/
 token
 .DS_Store
 *.log

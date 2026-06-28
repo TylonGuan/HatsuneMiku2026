@@ -4,20 +4,20 @@ import { useControls } from "leva";
 import { useRef } from "react";
 import type { MutableRefObject } from "react";
 import type { Player } from "textalive-app-api";
-import { CameraRig } from "./CameraRig";
-import { Theater } from "./Theater";
-import { Spotlight } from "./Spotlight";
-import { BackgroundLight } from "./BackgroundLight";
-import { Curtains } from "./Curtains";
-import { Chorus } from "./Chorus";
-import { Stars } from "./Stars";
-import { Miku } from "./Miku";
-import { Lyrics } from "./Lyrics";
+import { CameraRig } from "./camera/CameraRig";
+import { Theater } from "./backdrop/Theater";
+import { Spotlight } from "./lighting/Spotlight";
+import { BackgroundLight } from "./lighting/BackgroundLight";
+import { Curtains } from "./backdrop/Curtains";
+import { Chorus } from "./performers/Chorus";
+import { Stars } from "./effects/Stars";
+import { Miku } from "./performers/Miku";
+import { Lyrics } from "./lyrics/Lyrics";
 import { createSignals, SignalsUpdater } from "./Signals";
 import type { Signals } from "./Signals";
 import type { LyricData } from "../textalive/types";
 import type { SongConfig } from "./lyrics/types";
-import { Background } from "./Background";
+import { Background } from "./effects/Background";
 
 interface Props {
   player: Player | null;
@@ -59,7 +59,7 @@ export function Scene({ player, positionRef, isPlaying, ended, lyrics, song }: P
 
       <CameraRig />
       {/* House lights — flat fill on the whole stage (the spotlight then adds a
-          hot spot on top). Tunable via the "Lighting" leva folder; default 1.25
+          hot spot on top). Tunable via the "Lighting" leva folder; default 1.0
           keeps non-spotlit areas readable on dimmer displays. */}
       <ambientLight intensity={ambient} />
       <Background signalsRef={signalsRef} />

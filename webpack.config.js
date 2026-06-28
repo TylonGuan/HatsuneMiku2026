@@ -28,7 +28,7 @@ module.exports = (env, argv) => {
         },
         {
           // Import .jsonc (JSON-with-comments) timing files as a raw string;
-          // parsed at runtime (see src/textalive/chorusTimings.ts).
+          // parsed at runtime (see scene/lyrics/songs/answerMe/chorusTimings.ts).
           test: /\.jsonc$/,
           type: "asset/source",
         },

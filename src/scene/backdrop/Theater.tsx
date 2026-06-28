@@ -3,16 +3,23 @@ import { folder, useControls } from "leva";
 import { SRGBColorSpace } from "three";
 import type { Texture } from "three";
 
-import backgroundMedieval from "../../art/Scene1/BackgroundMedieval.png";
-import stageSpace from "../../art/Scene1/TheaterStageSpace.png";
-import stageFloorUrl from "../../art/Scene1/TheaterStageFloor.png";
-import frameUrl from "../../art/Scene1/TheaterCurtainsprosceniumWindows.png";
-import seatsUrl from "../../art/Scene1/TheaterSeats.png";
-import { BACKGROUND_LIGHT_LAYER } from "./BackgroundLight";
-import { PAPER_MATERIAL, STAGE_TINT } from "./sketch";
+import backgroundMedieval from "../../../art/Theater/BackgroundMedieval.png";
+import stageSpace from "../../../art/Theater/TheaterStageSpace.png";
+import stageFloorUrl from "../../../art/Theater/TheaterStageFloor.png";
+import frameUrl from "../../../art/Theater/TheaterCurtainsprosceniumWindows.png";
+import seatsUrl from "../../../art/Theater/TheaterSeats.png";
+import { BACKGROUND_LIGHT_LAYER } from "../lighting/BackgroundLight";
+import { PAPER_MATERIAL, STAGE_TINT } from "../common/sketch";
+import {
+  CAMERA_BASE_Z,
+  PLANE_IMG_ASPECT as IMG_ASPECT,
+  PLANE_MARGIN as MARGIN,
+  REFERENCE_FOV_DEG,
+} from "../stageMetrics";
 
-// All layers share one 3432x2429 canvas, so by default they overlay pixel-perfect.
-const IMG_ASPECT = 3432 / 2429; // ≈ 1.413
+// All layers share one 3432x2429 canvas, so by default they overlay pixel-perfect
+// (IMG_ASPECT). The shared sizing reference (CAMERA_BASE_Z, MARGIN, REFERENCE_FOV_DEG)
+// lives in stageMetrics.ts so Curtains/Lyrics/CameraRig size against the same numbers.
 
 // ── Starting placement for each layer ────────────────────────────────────────
 // These are the defaults; drag the leva sliders (top-right panel) to tune live,
@@ -33,9 +40,6 @@ const LAYERS = [
   { name: "seats", url: seatsUrl, x: 0, y: 1, z: -2, scale: 1, order: 3, bgLit: false }, // audience seats (nearest)
 ];
 
-const CAMERA_BASE_Z = 7; // keep in sync with CameraRig RADIUS/TARGET
-const MARGIN = 1.4; // oversize each plane so camera moves / zoom-out never reveal edges
-
 // ── Plane-sizing reference ───────────────────────────────────────────────────
 // Planes are sized at a FIXED reference FOV + aspect rather than the live ones,
 // so they don't shrink with the viewport. That gives the user "headroom" to
@@ -43,19 +47,19 @@ const MARGIN = 1.4; // oversize each plane so camera moves / zoom-out never reve
 // each painting — without the planes shrinking to follow. The companion
 // {@link CameraRig} clamps the zoom-out FOV at the point where the frustum
 // would exceed plane size (i.e. the painting edges would become visible).
-const REFERENCE_FOV_DEG = 55;
+// REFERENCE_FOV_DEG lives in stageMetrics.ts (shared); the aspect is local.
 const REFERENCE_ASPECT = 16 / 9;
 
 // One leva folder per layer, each with x / y / z / scale sliders.
 const layerControls = Object.fromEntries(
-  LAYERS.map((l) => [
-    l.name,
+  LAYERS.map((layer) => [
+    layer.name,
     folder(
       {
-        [`${l.name}-x`]: { value: l.x, min: -25, max: 25, step: 0.1 },
-        [`${l.name}-y`]: { value: l.y, min: -25, max: 25, step: 0.1 },
-        [`${l.name}-z`]: { value: l.z, min: -45, max: 2, step: 0.1 },
-        [`${l.name}-scale`]: { value: l.scale, min: 0.2, max: 3, step: 0.01 },
+        [`${layer.name}-x`]: { value: layer.x, min: -25, max: 25, step: 0.1 },
+        [`${layer.name}-y`]: { value: layer.y, min: -25, max: 25, step: 0.1 },
+        [`${layer.name}-z`]: { value: layer.z, min: -45, max: 2, step: 0.1 },
+        [`${layer.name}-scale`]: { value: layer.scale, min: 0.2, max: 3, step: 0.01 },
       },
       { collapsed: true },
     ),
@@ -113,21 +117,21 @@ export function Theater() {
 
   return (
     <group>
-      {planes.map((p) => (
+      {planes.map((plane) => (
         <mesh
-          key={p.name}
-          position={[p.x, p.y, p.z]}
-          renderOrder={p.order}
+          key={plane.name}
+          position={[plane.x, plane.y, plane.z]}
+          renderOrder={plane.order}
           // Opt the background-painting mesh into the dedicated background
           // render layer so the two `BackgroundLight` spotlights illuminate it.
           // `enable` is additive — layer 0 stays on so the main camera still
           // renders the mesh.
-          ref={(m) => {
-            if (m && p.bgLit) m.layers.enable(BACKGROUND_LIGHT_LAYER);
+          ref={(mesh) => {
+            if (mesh && plane.bgLit) mesh.layers.enable(BACKGROUND_LIGHT_LAYER);
           }}
         >
-          <planeGeometry args={[p.w, p.h]} />
-          <meshPhongMaterial map={p.tex} color={STAGE_TINT} {...PAPER_MATERIAL} />
+          <planeGeometry args={[plane.w, plane.h]} />
+          <meshPhongMaterial map={plane.tex} color={STAGE_TINT} {...PAPER_MATERIAL} />
         </mesh>
       ))}
     </group>

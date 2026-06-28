@@ -6,13 +6,21 @@ import { folder, useControls } from "leva";
 import { DoubleSide, SRGBColorSpace } from "three";
 import type { Mesh, Texture } from "three";
 
-import mikuHoldUrl from "../../art/MikuCutout/Miku Hold.png";
-import mikuWaveUrl from "../../art/MikuCutout/Miku Wave.png";
-import { smoothstep } from "./ease";
-import { PAPER_MATERIAL, SPRITE_ASPECT } from "./sketch";
-import type { LyricData } from "../textalive/types";
-import type { Signals } from "./Signals";
-import type { SongConfig } from "./lyrics/types";
+import mikuHoldUrl from "../../../art/MikuCutout/Miku Hold.png";
+import mikuWaveUrl from "../../../art/MikuCutout/Miku Wave.png";
+import { smoothstep } from "../common/ease";
+import {
+  BEATS_PER_SWAY,
+  heightFactor,
+  pulseShape,
+  SWAY_FREQ_HZ,
+  SWAY_PHASE,
+  swayCycles,
+} from "./performerMotion";
+import { PAPER_MATERIAL, SPRITE_ASPECT } from "../common/sketch";
+import type { LyricData } from "../../textalive/types";
+import type { Signals } from "../Signals";
+import type { SongConfig } from "../lyrics/types";
 
 // One entry per pose. To add a new pose: import the PNG, append it here,
 // extend the `Pose` union and the leva dropdown options.
@@ -30,16 +38,10 @@ const BOB_AMPLITUDE = 0.4;
  *  Bigger than the per-char bob so each ad-lib note clearly registers (the la-la
  *  is quieter than the song's peak, so the normalized amplitude is modest). */
 const AMP_BOB_AMPLITUDE = 0.9;
-/** Max sway angle (radians) when she's singing fully. */
+/** Max sway angle (radians) when she's singing fully. The sway *shape* (tempo
+ *  lock + beatless fallback) is shared via {@link swayCycles}; this is just her
+ *  amplitude. */
 const SWAY_AMPLITUDE = 0.1;
-/** Beats per full sway cycle — the sway LOCKS TO THE SONG'S TEMPO when beat data
- *  is available: one left→right→back lean every this-many beats, so she sways in
- *  time with the music. Higher = slower/lazier lean, lower = faster. 2.67 is a
- *  quarter slower than a 2-beat cycle. */
-const BEATS_PER_SWAY = 2.67;
-/** Fallback sway frequency (Hz), used only during beatless gaps (intro / silence)
- *  where there's no tempo to lock to, so she never freezes mid-lean. */
-const SWAY_FREQ_HZ = 0.5;
 /** Idle motion amplitude during instrumentals (0..1). Keeps her gently alive
  *  rather than freezing between phrases. */
 const IDLE_GAIN = 0.25;
@@ -49,37 +51,8 @@ const GAIN_RATE = 2.5;
 /** How long the chorus-entry spin takes, in seconds. */
 const SPIN_DURATION = 0.8;
 
-// --- Bob pulse shape ---------------------------------------------------------
-/** Fixed rise/fall portion of every char's bob, in ms. Hold fills the rest.
- *  For chars shorter than 2× this, rise+fall consume the whole duration and
- *  there's no flat hold (pure triangular blip). */
-const BOB_RISE_FALL_MS = 80;
-/** Char duration (ms) that maps to a height factor of 1.0. Shorter chars get
- *  proportionally smaller bobs, longer chars get proportionally taller ones. */
-const BOB_HEIGHT_NORMAL_MS = 500;
-/** Min/max clamp on heightFactor. Floor keeps very short chars visible at all;
- *  ceiling keeps very long held notes from launching her off-screen. */
-const BOB_MIN_HEIGHT_FACTOR = 0.5;
-const BOB_MAX_HEIGHT_FACTOR = 1.5;
-
-/**
- * Pulse shape across one character's [0, 1] phase:
- * smoothly rises to 1 in {@link BOB_RISE_FALL_MS}, holds at 1, falls back to 0
- * in another {@link BOB_RISE_FALL_MS}. Returns 0 at both endpoints, guaranteeing
- * smooth continuity into and out of any neighbouring char or gap.
- */
-export function pulseShape(phase: number, durationMs: number): number {
-  const rfFrac = Math.min(0.4, BOB_RISE_FALL_MS / Math.max(1, durationMs));
-  if (phase < rfFrac) return smoothstep(phase / rfFrac);
-  if (phase > 1 - rfFrac) return smoothstep((1 - phase) / rfFrac);
-  return 1.0;
-}
-
-/** Linearly map char duration to a height multiplier, clamped. */
-export function heightFactor(durationMs: number): number {
-  const f = durationMs / BOB_HEIGHT_NORMAL_MS;
-  return Math.max(BOB_MIN_HEIGHT_FACTOR, Math.min(BOB_MAX_HEIGHT_FACTOR, f));
-}
+// The per-character bob shape (`pulseShape` / `heightFactor`) and the tempo-locked
+// sway (`swayCycles`) are shared with the Chorus ensemble — see `./motion`.
 
 interface Props {
   signalsRef: RefObject<Signals>;
@@ -186,14 +159,14 @@ export function Miku({ signalsRef, lyrics, song }: Props) {
 
   useFrame((_, dt) => {
     const mesh = meshRef.current;
-    const s = signalsRef.current;
-    if (!mesh || !s) return;
+    const signals = signalsRef.current;
+    if (!mesh || !signals) return;
 
     // Verse → chorus transition arms a fresh spin (unless one is already running).
-    if (s.chorus && !prevChorusRef.current && spinProgressRef.current < 0) {
+    if (signals.chorus && !prevChorusRef.current && spinProgressRef.current < 0) {
       spinProgressRef.current = 0;
     }
-    prevChorusRef.current = s.chorus;
+    prevChorusRef.current = signals.chorus;
 
     if (spinProgressRef.current >= 0) {
       // Spin owns the pose entirely: drive rotation.y 0 → 2π and clamp the
@@ -211,11 +184,11 @@ export function Miku({ signalsRef, lyrics, song }: Props) {
     } else {
       // Ease the singing-vs-idle gain. Full when a phrase is active, falls
       // toward IDLE_GAIN during instrumental gaps so she doesn't freeze.
-      const gainTarget = s.phrasePhase >= 0 ? 1 : IDLE_GAIN;
+      const gainTarget = signals.phrasePhase >= 0 ? 1 : IDLE_GAIN;
       gainRef.current += (gainTarget - gainRef.current) * Math.min(1, dt * GAIN_RATE);
       const gain = gainRef.current;
 
-      const tSec = s.pos * 0.001;
+      const tSec = signals.pos * 0.001;
 
       // BOB — find the current character and emit a self-contained pulse for
       // its duration. The pulse rises in BOB_RISE_FALL_MS, holds at peak for
@@ -227,18 +200,18 @@ export function Miku({ signalsRef, lyrics, song }: Props) {
       let bob = 0;
       const chars = lyrics?.chars;
       if (chars && chars.length > 0) {
-        // Walk the index hint forward to the char whose window contains s.pos
+        // Walk the index hint forward to the char whose window contains signals.pos
         // (or the latest one that starts at or before it). Reset to 0 if we
         // detect a backward seek past the hint.
         let idx = charIdxRef.current;
-        if (idx >= chars.length || chars[idx].charStart > s.pos) idx = 0;
-        while (idx + 1 < chars.length && chars[idx + 1].charStart <= s.pos) idx++;
+        if (idx >= chars.length || chars[idx].charStart > signals.pos) idx = 0;
+        while (idx + 1 < chars.length && chars[idx + 1].charStart <= signals.pos) idx++;
         charIdxRef.current = idx;
-        const c = chars[idx];
+        const char = chars[idx];
         // Skip the chorus voices' lines (pink) — those are the team's to sing.
-        if (s.pos >= c.charStart && s.pos < c.charEnd && !chorusVoiceSet.has(c.phraseIndex)) {
-          const durationMs = c.charEnd - c.charStart;
-          const phase = (s.pos - c.charStart) / Math.max(1, durationMs);
+        if (signals.pos >= char.charStart && signals.pos < char.charEnd && !chorusVoiceSet.has(char.phraseIndex)) {
+          const durationMs = char.charEnd - char.charStart;
+          const phase = (signals.pos - char.charStart) / Math.max(1, durationMs);
           bob = pulseShape(phase, durationMs) * heightFactor(durationMs) * gain * BOB_AMPLITUDE;
         }
       }
@@ -249,18 +222,18 @@ export function Miku({ signalsRef, lyrics, song }: Props) {
       // lyric phrase is active, so when a line (e.g. [19]) begins inside an amp
       // window she bobs to its syllables rather than carrying on with the la-la.
       if (
-        s.phrasePhase < 0 &&
-        (song.ampBobWindows ?? []).some(([a, b]) => s.pos >= a && s.pos < b)
+        signals.phrasePhase < 0 &&
+        (song.ampBobWindows ?? []).some(([start, end]) => signals.pos >= start && signals.pos < end)
       ) {
-        bob = s.vocalBob * AMP_BOB_AMPLITUDE;
+        bob = signals.vocalBob * AMP_BOB_AMPLITUDE;
       }
 
       // SWAY — a continuous lean locked to the song's tempo: one full
       // left→right→back cycle every BEATS_PER_SWAY beats (so it keeps time with
       // the music), driven by the continuous beat position. Falls back to a
       // free-running rate during beatless gaps so she stays alive, not frozen.
-      const swayCycles = s.beatPhase >= 0 ? s.beats / BEATS_PER_SWAY : tSec * SWAY_FREQ_HZ;
-      const sway = Math.sin(swayCycles * Math.PI * 2 + 1.0) * gain * SWAY_AMPLITUDE;
+      const cycles = swayCycles(signals.beats, signals.beatPhase, tSec, BEATS_PER_SWAY, SWAY_FREQ_HZ);
+      const sway = Math.sin(cycles * Math.PI * 2 + SWAY_PHASE) * gain * SWAY_AMPLITUDE;
 
       mesh.position.y = y + bob;
       mesh.rotation.z = sway;

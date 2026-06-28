@@ -8,8 +8,8 @@ import {
   Points,
   PointsMaterial,
 } from "three";
-import { hsl } from "./color";
-import type { Signals } from "./Signals";
+import { hsl } from "../common/color";
+import type { Signals } from "../Signals";
 
 const PETAL_COUNT = 600;
 
@@ -39,9 +39,9 @@ export function Background({ signalsRef }: Props) {
   }, []);
 
   useFrame(({ clock }) => {
-    const s = signalsRef.current;
-    if (!s) return;
-    const { sat, clim } = s;
+    const signals = signalsRef.current;
+    if (!signals) return;
+    const { sat, clim } = signals;
     const time = clock.elapsedTime;
 
     // Background fill: deep plum -> warmer, more saturated.
@@ -65,16 +65,6 @@ export function Background({ signalsRef }: Props) {
       mat.color.copy(hsl(330 + sat * 20 + clim * 10, 20 + sat * 25, 45 + sat * 25));
       mat.opacity = 0.18 + sat * 0.12 + clim * 0.1;
     }
-
-    // Fog tightens during the climax for a more enveloping feel.
-    // if (clim > 0.05) {
-    //   scene.fog = new Fog(hsl(25, 25, 8), 16 + clim * 14, 44);
-    // } else if (sat > 0.3) {
-    //   scene.fog = new Fog(hsl(310 - sat * 20, 8 + sat * 10, 5 + sat * 2), 22, 48);
-    // } else {
-    //   scene.fog = null;
-    // }
-
   });
 
   return (

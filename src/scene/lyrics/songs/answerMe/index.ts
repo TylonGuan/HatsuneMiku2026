@@ -65,7 +65,7 @@ export const answerMeSong: SongConfig = {
   chorusVoicePhrases: CHORUS_VOICE_PHRASES,
 
   // On-stage choreography (entrance/exit timeline) + who sings each phrase (for
-  // bobbing). Drives the <Chorus> cast — translated from casting.txt.
+  // bobbing). Drives the <Chorus> cast — authored in ./casting.ts.
   castingCues: ANSWER_ME_CUES,
   singByPhrase: ANSWER_ME_SINGERS,
   ampBobWindows: ANSWER_ME_AMP_WINDOWS,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, MutableRefObject, PointerEvent } from "react";
 import type { PlayerControls, PlayerStatus } from "../textalive/usePlayer";
 import { SONG } from "../config";
@@ -38,9 +38,11 @@ function formatTime(ms: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-/** Write the "current / total" label straight to the DOM (no React state per frame). */
-function setTimeLabel(el: HTMLSpanElement | null, ms: number, duration: number): void {
-  if (el) el.textContent = `${formatTime(ms)} / ${formatTime(duration)}`; // ${formatTime(duration)} doesnt change, see if you can just cache the value once
+/** Write the "current / total" label straight to the DOM (no React state per frame).
+ *  `totalLabel` is the pre-formatted song length — the total doesn't change, so the
+ *  caller formats it once (per `duration`) instead of every frame. */
+function setTimeLabel(el: HTMLSpanElement | null, ms: number, totalLabel: string): void {
+  if (el) el.textContent = `${formatTime(ms)} / ${totalLabel}`;
 }
 
 /**
@@ -68,6 +70,9 @@ function SeekBar({
   const timeRef = useRef<HTMLSpanElement>(null);
   /** True while the user is dragging the thumb. */
   const scrubbing = useRef(false);
+  /** Total-length label, formatted once per `duration` (it never changes mid-song)
+   *  rather than re-formatted every animation frame. */
+  const totalLabel = useMemo(() => formatTime(duration), [duration]);
 
   // Follow the live position each frame (skipped while the user is dragging).
   useEffect(() => {
@@ -77,19 +82,19 @@ function SeekBar({
       if (el && !scrubbing.current) {
         const pos = positionRef.current;
         el.value = String(pos);
-        setTimeLabel(timeRef.current, pos, duration);
+        setTimeLabel(timeRef.current, pos, totalLabel);
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [positionRef, duration]);
+  }, [positionRef, totalLabel]);
 
   // Fires as the thumb value changes. For a pointer drag we only seek on release
   // (in end); a keyboard/programmatic change has no pointer gesture, so seek now.
   const onInput = (e: ChangeEvent<HTMLInputElement>) => {
     const ms = parseFloat(e.target.value);
-    setTimeLabel(timeRef.current, ms, duration);
+    setTimeLabel(timeRef.current, ms, totalLabel);
     if (!scrubbing.current) seek(ms);
   };
 
@@ -120,7 +125,7 @@ function SeekBar({
         onChange={onInput}
       />
       <span ref={timeRef} className="seek-time">
-        0:00 / {formatTime(duration)}
+        0:00 / {totalLabel}
       </span>
     </div>
   );
@@ -128,8 +133,8 @@ function SeekBar({
 
 /**
  * HTML UI layer rendered over the WebGL scene: the title / click-to-start panel,
- * volume + mute, skip-to-first-lyric, the scrub bar, the live subtitle, and a
- * Paused indicator. All playback state arrives via props from {@link usePlayer}.
+ * volume + mute, a subtitle on/off toggle, the scrub bar, the live subtitle, and
+ * a Paused indicator. All playback state arrives via props from {@link usePlayer}.
  */
 export function Overlay({
   status,
@@ -168,11 +173,14 @@ export function Overlay({
   const hintText = isTouch
     ? "Tilt your device or drag to look around · pinch to zoom"
     : "Drag to look around · scroll to zoom";
-  /** User toggle to hide the transport chrome (speaker / seek / skip) for a
+  /** User toggle to hide the transport chrome (speaker + seek bar) for a
    *  clean, uncluttered view. Starts hidden so the stage is uncluttered by
    *  default — the bottom-center triangle handle reveals the controls on
    *  demand. The handle itself always stays visible. */
   const [uiHidden, setUiHidden] = useState(true);
+  /** English-subtitle visibility, toggled via the "CC" button. On by default;
+   *  the user can switch it off before or during the song. */
+  const [subtitlesOn, setSubtitlesOn] = useState(true);
 
   useEffect(() => {
     if (isPlaying) setStarted(true);
@@ -198,9 +206,8 @@ export function Overlay({
   const muteIcon = muted ? "🔇" : volume > 50 ? "🔊" : "🔉";
 
   // Chrome visibility. The speaker is available as soon as the song loads; the
-  // seek bar and skip-to-lyric button only appear once playback has started
-  // (the skip button rides along with the seek bar). The hide toggle suppresses
-  // all three for a clean view.
+  // seek bar only appears once playback has started. The hide toggle suppresses
+  // both for a clean view.
   const showControls = ready && !uiHidden;
   const showTransport = started && !uiHidden;
 
@@ -231,32 +238,38 @@ export function Overlay({
         <span className="ui-toggle-tri" />
       </button>
 
-      {/* Mute toggle + volume slider. Omitted entirely on iOS, where media volume
-          is read-only (the OS reserves it for the hardware buttons). */}
-      {!isIOS && (
-        <div className={`controls${showControls ? " visible" : ""}`}>
-          <button className="btn" title="Mute / unmute" onClick={controls.toggleMute}>
-            {muteIcon}
-          </button>
-          <input
-            className="volume"
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={muted ? 0 : volume}
-            onChange={(e) => controls.setVolume(parseFloat(e.target.value))}
-          />
-        </div>
-      )}
-
-      <button
-        className={`btn skip${showTransport ? " visible" : ""}`}
-        title="Skip to first lyric"
-        onClick={controls.skip}
-      >
-        ⏭
-      </button>
+      {/* Bottom-left transport bubble, revealed by the triangle handle: the
+          subtitle (CC) on/off toggle is always present (incl. iOS); the mute
+          button + volume slider are added only where media volume is writable
+          (iOS Safari makes it read-only — the OS reserves it for the hardware
+          buttons). */}
+      <div className={`controls${showControls ? " visible" : ""}`}>
+        <button
+          className={`btn cc${subtitlesOn ? " on" : ""}`}
+          title={subtitlesOn ? "Hide English subtitles" : "Show English subtitles"}
+          aria-label={subtitlesOn ? "Hide English subtitles" : "Show English subtitles"}
+          aria-pressed={subtitlesOn}
+          onClick={() => setSubtitlesOn((value) => !value)}
+        >
+          CC
+        </button>
+        {!isIOS && (
+          <>
+            <button className="btn" title="Mute / unmute" onClick={controls.toggleMute}>
+              {muteIcon}
+            </button>
+            <input
+              className="volume"
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={muted ? 0 : volume}
+              onChange={(e) => controls.setVolume(parseFloat(e.target.value))}
+            />
+          </>
+        )}
+      </div>
 
       <SeekBar
         positionRef={positionRef}
@@ -268,8 +281,10 @@ export function Overlay({
       {/* Transient camera-gesture hint, shown once right after the first start. */}
       <div className={`gesture-hint${showHint ? " visible" : ""}`}>{hintText}</div>
 
-      {/* Current phrase translation; only shown while actually playing. */}
-      <div className={`subtitle${subtitle && isPlaying ? " visible" : ""}`}>{subtitle}</div>
+      {/* Current phrase translation; shown while playing, unless toggled off. */}
+      <div className={`subtitle${subtitlesOn && subtitle && isPlaying ? " visible" : ""}`}>
+        {subtitle}
+      </div>
 
       <div className={`paused${showPaused ? " visible" : ""}`}>Paused</div>
     </>

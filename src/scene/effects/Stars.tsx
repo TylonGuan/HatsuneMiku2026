@@ -4,7 +4,8 @@ import { useFrame } from "@react-three/fiber";
 import { useControls } from "leva";
 import { Color, Matrix4, MeshBasicMaterial, Quaternion, Shape, ShapeGeometry, Vector3 } from "three";
 import type { InstancedMesh } from "three";
-import type { Signals } from "./Signals";
+import { CAMERA_DISTANCE_Z } from "../stageMetrics";
+import type { Signals } from "../Signals";
 
 // How many stars in the shower. Fixed (an InstancedMesh is allocated for this
 // count); it only updates while the shower is running, so it's free otherwise.
@@ -20,7 +21,7 @@ const STAR_START_MS = 182_000;
  *  the default fall speed. This is the "how long does it last" knob. */
 const STAR_EMIT_SECONDS = 8;
 
-const CAM_Z = 8; // camera z (matches App's camera) — used to size the spawn width per depth
+const CAM_Z = CAMERA_DISTANCE_Z; // sizes the spawn width per depth (shared camera z)
 // Depth slab the stars fall through — a WIDE z spread (from behind the seats out
 // to close to the camera) so perspective makes near stars clearly bigger and
 // faster than far ones. That parallax is what stops the field reading as a flat
@@ -157,21 +158,23 @@ export function Stars({ signalsRef }: Props) {
 
   useFrame((_, dt) => {
     const mesh = meshRef.current;
-    const s = signalsRef.current;
-    if (!mesh || !s) return;
+    const signals = signalsRef.current;
+    if (!mesh || !signals) return;
 
     // Start the shower when playback crosses the cue (and not via a big seek that
     // lands well past it). `test` loops it so the leva preview keeps replaying.
     const crossedCue =
-      prevPosRef.current < STAR_START_MS && s.pos >= STAR_START_MS && s.pos < STAR_START_MS + 1500;
-    prevPosRef.current = s.pos;
+      prevPosRef.current < STAR_START_MS &&
+      signals.pos >= STAR_START_MS &&
+      signals.pos < STAR_START_MS + 1500;
+    prevPosRef.current = signals.pos;
     if (crossedCue || (test && burstRef.current < 0)) {
       burstRef.current = 0;
-      for (const st of stars) {
+      for (const star of stars) {
         // Stagger initial Y ABOVE the top so the field cascades IN over the first
         // fall, rather than appearing mid-screen.
-        st.y = SPAWN_TOP + Math.random() * (SPAWN_TOP - SPAWN_BOTTOM);
-        st.spin = Math.random() * Math.PI * 2;
+        star.y = SPAWN_TOP + Math.random() * (SPAWN_TOP - SPAWN_BOTTOM);
+        star.spin = Math.random() * Math.PI * 2;
       }
     }
 
@@ -185,34 +188,34 @@ export function Stars({ signalsRef }: Props) {
     // Advance the shower clock — frozen while paused (test forces motion so the
     // preview still plays). All motion derives from `d`, so a pause holds the
     // whole shower still (fall, spin, and sway alike).
-    const moving = test || s.playing;
-    const d = moving ? Math.min(dt, 0.05) : 0;
-    const e = (burstRef.current += d);
-    const emitting = e < STAR_EMIT_SECONDS;
+    const moving = test || signals.playing;
+    const delta = moving ? Math.min(dt, 0.05) : 0;
+    const elapsed = (burstRef.current += delta);
+    const emitting = elapsed < STAR_EMIT_SECONDS;
 
     const half = middleGap * 0.5; // central baseX band to keep clear of stars
     const fallSpan = SPAWN_TOP - SPAWN_BOTTOM;
     let active = emitting; // still emitting ⇒ definitely active
     for (let i = 0; i < COUNT; i++) {
-      const st = stars[i];
-      st.y -= fallSpeed * st.fall * d;
+      const star = stars[i];
+      star.y -= fallSpeed * star.fall * delta;
       // Recycle to the top while the shower is on; once emission stops, let the
       // straggler fall out and stay gone so the field thins to nothing.
-      if (st.y < SPAWN_BOTTOM && emitting) st.y += fallSpan;
-      if (st.y > SPAWN_BOTTOM) active = true;
-      st.spin += st.spinSpeed * d;
+      if (star.y < SPAWN_BOTTOM && emitting) star.y += fallSpan;
+      if (star.y > SPAWN_BOTTOM) active = true;
+      star.spin += star.spinSpeed * delta;
 
       // Remap baseX away from the centre so stars straddle the lyric column.
       // Because per-depth width and screen size both scale with distance, this
       // leaves a consistent central screen gap at every depth.
-      const sign = st.baseX >= 0 ? 1 : -1;
-      const mag = half + (Math.abs(st.baseX) / 0.5) * (0.5 - half);
-      const xRange = spawnWidth * ((CAM_Z - st.z) / (CAM_Z - Z_FAR));
-      const x = sign * mag * xRange + Math.sin(e * st.swayFreq + st.swayPhase) * st.swayAmp;
+      const sign = star.baseX >= 0 ? 1 : -1;
+      const mag = half + (Math.abs(star.baseX) / 0.5) * (0.5 - half);
+      const xRange = spawnWidth * ((CAM_Z - star.z) / (CAM_Z - Z_FAR));
+      const x = sign * mag * xRange + Math.sin(elapsed * star.swayFreq + star.swayPhase) * star.swayAmp;
 
-      pos.set(x, st.y, st.z);
-      q.setFromAxisAngle(Z_AXIS, st.spin);
-      scl.setScalar(st.scale * size);
+      pos.set(x, star.y, star.z);
+      q.setFromAxisAngle(Z_AXIS, star.spin);
+      scl.setScalar(star.scale * size);
       m4.compose(pos, q, scl);
       mesh.setMatrixAt(i, m4);
     }

@@ -3,9 +3,10 @@ import { Leva } from "leva";
 import { useEffect, useRef } from "react";
 import type { MouseEvent, PointerEvent } from "react";
 import { Scene } from "./scene/Scene";
+import { REFERENCE_FOV_DEG } from "./scene/stageMetrics";
 import { answerMeSong } from "./scene/lyrics/songs/answerMe";
 import { Overlay } from "./ui/Overlay";
-import { requestGyro } from "./scene/gyro";
+import { requestGyro } from "./scene/camera/gyro";
 import { usePlayer } from "./textalive/usePlayer";
 
 /**
@@ -120,7 +121,12 @@ export function App() {
    * - fov: vertical field of view in degrees (also used by Theater to size layers)
    * - near/far: render depth bounds
    */
-  const camera = { position: [0, 1, 8] as [number, number, number], fov: 55, near: 0.1, far: 200 };
+  const camera = {
+    position: [0, 1, 8] as [number, number, number],
+    fov: REFERENCE_FOV_DEG,
+    near: 0.1,
+    far: 200,
+  };
 
   return (
     <>

@@ -5,16 +5,15 @@
 // being copy-pasted onto every <meshPhongMaterial>.
 
 /**
- * Compositing props shared by all paper sprites. Spread onto a
- * `<meshPhongMaterial>`; pass `map`, `color` (tint), and optional `side`
- * separately.
+ * Shared material settings for every flat "paper" plane. Spread onto a
+ * `<meshPhongMaterial>`; pass `map`, `color` (tint), and optional `side` separately.
  *
- * - `depthTest` / `depthWrite` **off** → the planes don't z-fight; **paint order
- *   is decided purely by each mesh's `renderOrder`** (see the render-order table
- *   in CLAUDE.md). This is what lets deeper-z layers still draw in a chosen order.
- * - `toneMapped` **off** → tints and the Bloom pass act on the raw colour, so
- *   bright glyphs/stars actually bloom instead of being gamma-compressed first.
- * - `shininess: 0` → no specular hot-spot on the matte "paper".
+ * - `depthTest` / `depthWrite` **off** → don't auto-hide planes by distance; we
+ *   pick what's in front by hand via each mesh's `renderOrder`,
+ *   so a farther plane can still draw on top.
+ * - `toneMapped` **off** → keep colours raw (not auto-dimmed) so bright glyphs and
+ *   stars are bright enough for the Bloom pass to make them glow.
+ * - `shininess: 0` → matte paper, no glossy highlight.
  */
 export const PAPER_MATERIAL = {
   transparent: true,

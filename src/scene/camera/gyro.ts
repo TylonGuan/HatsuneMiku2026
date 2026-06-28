@@ -18,9 +18,8 @@
 // rotation, and re-center on rotation. That keeps "lean left" = look left no
 // matter how the phone is held.
 
-/** Max horizontal / vertical swing — mirror CameraRig's AZ_LIMIT / EL_LIMIT. */
-const AZ_LIMIT = 0.22;
-const EL_LIMIT = 0.12;
+import { CAMERA_AZ_LIMIT as AZ_LIMIT, CAMERA_EL_LIMIT as EL_LIMIT } from "../stageMetrics";
+
 /** Degrees of physical tilt mapped to the full swing. Larger = less sensitive. */
 const RANGE_X = 35; // screen left-right tilt → azimuth
 const RANGE_Y = 28; // screen up-down tilt → elevation

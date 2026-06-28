@@ -15,7 +15,6 @@ export interface PlayerControls {
   play: () => void;
   pause: () => void;
   toggle: () => void;
-  skip: () => void;
   /** Seek playback to a position [ms]. */
   seek: (ms: number) => void;
   setVolume: (v: number) => void;
@@ -28,7 +27,7 @@ export interface PlayerControls {
  * `player` / `lyrics` / `duration` / `status` — loaded once when the song initialises.
  * `isPlaying` / `positionRef` / `subtitle` — updated live during playback.
  * `volume` / `muted` — current audio state.
- * `controls` — functions the UI calls to play, pause, skip, seek, or adjust volume.
+ * `controls` — functions the UI calls to play, pause, seek, or adjust volume.
  */
 export interface UsePlayerResult {
   /** The raw TextAlive Player instance (null before onAppReady). */
@@ -212,10 +211,10 @@ export function usePlayer(
    * Silently no-ops if the player isn't ready yet.
    */
   const applyVolume = useCallback((vol: number, isMuted: boolean) => {
-    const p = playerRef.current;
-    if (!p) return;
+    const activePlayer = playerRef.current;
+    if (!activePlayer) return;
     try {
-      p.volume = isMuted ? 0 : vol;
+      activePlayer.volume = isMuted ? 0 : vol;
     } catch {
       /* volume not settable before media is ready */
     }
@@ -230,19 +229,11 @@ export function usePlayer(
       },
       pause: () => playerRef.current?.requestPause(),
       toggle: () => {
-        const p = playerRef.current;
-        if (!p) return;
+        const activePlayer = playerRef.current;
+        if (!activePlayer) return;
         userInitiatedRef.current = true;
-        if (p.isPlaying) p.requestPause();
-        else p.requestPlay();
-      },
-      skip: () => {
-        const p = playerRef.current;
-        const first = p?.video?.firstChar;
-        if (!p || !first) return;
-        userInitiatedRef.current = true;
-        p.requestMediaSeek(first.startTime);
-        if (!p.isPlaying) p.requestPlay();
+        if (activePlayer.isPlaying) activePlayer.requestPause();
+        else activePlayer.requestPlay();
       },
       // Seek the audio element. The scene reads the element's true position each
       // frame (see SignalsUpdater), so this stays correct whether playing or paused.

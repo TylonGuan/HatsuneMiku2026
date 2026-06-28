@@ -3,7 +3,10 @@ import type { IVideo, IPhrase, IWord, IChar } from "textalive-app-api";
 import type { PhraseTimings } from "../scene/lyrics/songs/answerMe/chorusTimings";
 import type { CharDatum, LyricData, PhraseDatum } from "./types";
 
-const SPACING = 0.6; // horizontal gap between settled characters
+/** Horizontal gap between settled characters. Exported as the single source of
+ *  truth: `lyrics/wrap.ts` imports it to measure word widths against the same
+ *  geometry these settle positions are baked with. */
+export const SPACING = 0.7;
 const LANE_GAP = 2.4; // vertical spacing between lanes of concurrent phrases
 // ms padding (~LEAD/TRAIL in Lyrics.tsx) used to decide if two phrases share the screen
 const OVERLAP_PAD = 1500;
@@ -11,7 +14,9 @@ const OVERLAP_PAD = 1500;
 // --- Theater layout: glyphs rise out of the audience and settle into a readable,
 // glowing line above the crowd, like raised glow sticks, then drift up and away. ---
 const SEAT_Z = -1.5; // depth of the audience (where glyphs are born)
-const LYRIC_Z = -3; // depth where the readable line settles
+/** Depth where the readable line settles. Exported (as `SETTLE_Z` in wrap.ts)
+ *  so the wrap layout measures at the same depth these positions are baked at. */
+export const LYRIC_Z = -3;
 const LINE_Y = 1.0; // height of the settled line, above the seat backs
 const RISE_FROM_Y = -3.4; // glyphs start down in the seats
 const RISE_TO_Y = 5.2; // and exit upward, toward the stage lights
@@ -40,17 +45,17 @@ function theaterJourney(t: number, rowLen: number, lane: number): Journey {
 // Collect a linked-list run (firstChar..lastChar / firstWord..lastWord) into an array.
 function collect<T extends { next: T; }>(first: T | null, last: T): T[] {
   const out: T[] = [];
-  for (let n = first; n; n = n.next) {
-    out.push(n);
-    if (n === last) break;
+  for (let node = first; node; node = node.next) {
+    out.push(node);
+    if (node === last) break;
   }
   return out;
 }
 
 // Corrected phrase window = first char of first word .. last char of last word.
-const overrideStart = (ph: PhraseTimings) => ph[0][0].startTime;
-const overrideEnd = (ph: PhraseTimings) => {
-  const lastWord = ph[ph.length - 1];
+const overrideStart = (phraseTimings: PhraseTimings) => phraseTimings[0][0].startTime;
+const overrideEnd = (phraseTimings: PhraseTimings) => {
+  const lastWord = phraseTimings[phraseTimings.length - 1];
   return lastWord[lastWord.length - 1].endTime;
 };
 
@@ -86,18 +91,18 @@ export function buildLyrics(
   // whole line down on narrow viewports so side characters don't fall off.
   let maxRowWidth = 0;
 
-  rawPhrases.forEach((p, pi) => {
+  rawPhrases.forEach((phrase, phraseIndex) => {
     // TextAlive groups Phrase → Word → Char; we walk words so timing can be
     // grouped per word, but lay characters out continuously (no word spacing).
-    const words = collect<IWord>(p.firstWord, p.lastWord);
+    const words = collect<IWord>(phrase.firstWord, phrase.lastWord);
 
-    const override = chorusTimings?.get(p.text);
-    if (override) matchedOverrides.add(p.text);
+    const override = chorusTimings?.get(phrase.text);
+    if (override) matchedOverrides.add(phrase.text);
 
     // Phrase-level window (corrected when available) — used for lane packing and
     // the subtitle phrase list.
-    const startTime = override ? overrideStart(override) : p.startTime;
-    const endTime = override ? overrideEnd(override) : p.endTime;
+    const startTime = override ? overrideStart(override) : phrase.startTime;
+    const endTime = override ? overrideEnd(override) : phrase.endTime;
 
     // Lane assignment: greedily put each phrase on the lowest lane no currently-
     // visible phrase occupies, so concurrent phrases don't overlap.
@@ -113,31 +118,31 @@ export function buildLyrics(
 
     // Characters sit evenly across the whole phrase, so a phrase-local char index
     // (ci) drives the horizontal position; the word only governs timing/grouping.
-    const totalChars = words.reduce((n, w) => n + w.charCount, 0);
+    const totalChars = words.reduce((sum, word) => sum + word.charCount, 0);
     const count = Math.max(1, totalChars);
     const rowLen = count * SPACING;
     if (rowLen > maxRowWidth) maxRowWidth = rowLen;
 
     let ci = 0;
-    words.forEach((w, wi) => {
-      const wordOverride = override?.[wi];
-      const wordStart = wordOverride ? wordOverride[0].startTime : w.startTime;
-      const wordEnd = wordOverride ? wordOverride[wordOverride.length - 1].endTime : w.endTime;
+    words.forEach((word, wordArrayIndex) => {
+      const wordOverride = override?.[wordArrayIndex];
+      const wordStart = wordOverride ? wordOverride[0].startTime : word.startTime;
+      const wordEnd = wordOverride ? wordOverride[wordOverride.length - 1].endTime : word.endTime;
       const wordIndex = wordCounter++;
 
-      collect<IChar>(w.firstChar, w.lastChar).forEach((c, k) => {
+      collect<IChar>(word.firstChar, word.lastChar).forEach((char, charInWordIndex) => {
         const t = ci / Math.max(1, count - 1); // 0..1 across the phrase
         const { entry, settle, exit } = theaterJourney(t, rowLen, lane);
-        const charOverride = wordOverride?.[k];
+        const charOverride = wordOverride?.[charInWordIndex];
         chars.push({
-          text: c.text,
-          phraseIndex: pi,
+          text: char.text,
+          phraseIndex,
           wordIndex,
           charIndex: charCounter++,
           wordStart,
           wordEnd,
-          charStart: charOverride?.startTime ?? c.startTime,
-          charEnd: charOverride?.endTime ?? c.endTime,
+          charStart: charOverride?.startTime ?? char.startTime,
+          charEnd: charOverride?.endTime ?? char.endTime,
           entry,
           settle,
           exit,
@@ -147,7 +152,7 @@ export function buildLyrics(
       });
     });
 
-    phrases.push({ index: pi, text: p.text, startTime, endTime });
+    phrases.push({ index: phraseIndex, text: phrase.text, startTime, endTime });
   });
 
   if (process.env.NODE_ENV !== "production" && chorusTimings) {
