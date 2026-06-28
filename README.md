@@ -10,6 +10,8 @@ Kagamine Len, Megurine Luka, Meiko, and Kaito — sway, bob, and spin with the m
 
 By **Tylon Guan** · ### (◕‿◕) Hello from the USA 🇺🇸 (◕‿◕)
 
+### Demo can be found here! https://miku-stage.vercel.app/
+
 <p align="center">
   <img src="art/Screenshots/MainScreenshot.png" width="49%" alt="The pop-up-storybook theatre — Hatsune Miku on stage with glowing lyrics rising from the audience" />
   <img src="art/Screenshots/MainScreenshot2.png" width="49%" alt="The Crypton cast performing on the sketched stage under the spotlight" />
