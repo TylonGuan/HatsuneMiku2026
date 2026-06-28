@@ -4,9 +4,9 @@ A web-based lyric performance for the [Hatsune Miku「Magical Mirai」2026
 Programming Contest][procon], built on the contest's Grand Prize song
 **imie feat. 初音ミク —「こたえて」(Answer Me)**.
 
-Hand-drawn graphite lyrics rise out of the audience as glowing characters onto a
-pop-up-storybook stage, where Hatsune Miku and the Crypton cast — Rin, Len, Luka,
-Meiko, and Kaito — sway, bob, and spin with the music under a live spotlight.
+All graphics are hand-drawn! And lyrics rise out of the audience as glowing characters
+onto a pop-up-storybook stage, where Hatsune Miku and the Crypton cast — Kagamine Rin,
+Kagamine Len, Megurine Luka, Meiko, and Kaito — sway, bob, and spin with the music under a live spotlight.
 
 By **Tylon Guan** · ### (◕‿◕) Hello from the USA 🇺🇸 (◕‿◕)
 
