@@ -156,10 +156,10 @@ problems it solves:
   moment can be re-coloured or re-animated by data alone — no per-song code.
 - **Multi-platform from the start.** Gyroscope tilt is remapped into screen space
   across portrait and both landscapes; the subtitle reflows to the top on phones
-  (in either orientation) so it never covers the lower-mid lyric band; iOS's
-  secure-context and read-only media-volume quirks are detected and handled; and a
-  device-pixel-ratio cap plus a Bloom toggle keep the fill-rate-bound rendering
-  smooth on phones. *(iOS gyro caveat: the motion sensor needs **HTTPS** or
+  (in either orientation) so it never covers the lower-mid lyric band; the in-app
+  volume slider is desktop-only (touch devices use their hardware buttons, which
+  also sidesteps iOS Safari's read-only media volume); and a device-pixel-ratio
+  cap plus a Bloom toggle keep the fill-rate-bound rendering smooth on phones. *(iOS gyro caveat: the motion sensor needs **HTTPS** or
   `localhost`; a plain-HTTP build served by LAN IP — e.g. `npx serve dist` on a
   phone — shows no permission prompt and tilt stays off. Serve over HTTPS to
   enable it; see [Quick start](#quick-start-run-in-2-minutes).)*

@@ -56,8 +56,10 @@ export interface UsePlayerResult {
   controls: PlayerControls;
 }
 
-/** Default volume level between 0–100. */
-const DEFAULT_VOLUME = 20;
+/** Default volume level between 0–100. Mobile/touch builds omit the in-app
+ *  volume slider (users adjust with the hardware buttons), so this is the level
+ *  they start at. */
+const DEFAULT_VOLUME = 70;
 
 /**
  * React hook that initialises the TextAlive Player, loads song data,

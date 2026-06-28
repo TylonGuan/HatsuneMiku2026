@@ -154,22 +154,14 @@ export function Overlay({
    *  and then faded away. */
   const [showHint, setShowHint] = useState(false);
   const hintShownRef = useRef(false);
-  /** Coarse pointer ⇒ touch device ⇒ mention tilt; otherwise mention drag/scroll. */
+  /** Coarse pointer ⇒ touch device (phone / tablet). Drives the gesture-hint
+   *  wording AND gates the in-app volume controls: touch devices use their
+   *  hardware volume buttons (and iOS Safari makes media volume read-only
+   *  anyway), so the slider + mute are desktop-only. Playback starts at
+   *  {@link DEFAULT_VOLUME}. */
   const [isTouch] = useState(
     () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches,
   );
-  /** iOS (incl. iPadOS, which masquerades as "MacIntel" + touch). iOS Safari
-   *  makes media-element volume/mute read-only — the OS reserves it for the
-   *  hardware buttons — so the in-app volume controls do nothing there and are
-   *  replaced with a hint. */
-  const [isIOS] = useState(() => {
-    if (typeof navigator === "undefined") return false;
-    const ua = navigator.userAgent;
-    return (
-      /iPad|iPhone|iPod/.test(ua) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
-    );
-  });
   const hintText = isTouch
     ? "Tilt your device or drag to look around · pinch to zoom"
     : "Drag to look around · scroll to zoom";
@@ -206,10 +198,10 @@ export function Overlay({
   const muteIcon = muted ? "🔇" : volume > 50 ? "🔊" : "🔉";
 
   // Chrome visibility. The speaker is available as soon as the song loads; the
-  // seek bar only appears once playback has started. The hide toggle suppresses
-  // both for a clean view.
+  // seek bar only shows during playback (hidden before the first play and after
+  // the song ends). The hide toggle suppresses both for a clean view.
   const showControls = ready && !uiHidden;
-  const showTransport = started && !uiHidden;
+  const showTransport = started && !ended && !uiHidden;
 
   return (
     <>
@@ -239,10 +231,9 @@ export function Overlay({
       </button>
 
       {/* Bottom-left transport bubble, revealed by the triangle handle: the
-          subtitle (CC) on/off toggle is always present (incl. iOS); the mute
-          button + volume slider are added only where media volume is writable
-          (iOS Safari makes it read-only — the OS reserves it for the hardware
-          buttons). */}
+          subtitle (CC) on/off toggle is always present; the mute button + volume
+          slider are desktop-only. Touch devices (phones / tablets) use their
+          hardware volume buttons, so the in-app slider is omitted there. */}
       <div className={`controls${showControls ? " visible" : ""}`}>
         <button
           className={`btn cc${subtitlesOn ? " on" : ""}`}
@@ -253,7 +244,7 @@ export function Overlay({
         >
           CC
         </button>
-        {!isIOS && (
+        {!isTouch && (
           <>
             <button className="btn" title="Mute / unmute" onClick={controls.toggleMute}>
               {muteIcon}

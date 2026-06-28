@@ -58,20 +58,17 @@ export function App() {
    *   - ArrowLeft    → seek backward {@link KEY_SEEK_STEP_MS}
    *   - ArrowRight   → seek forward {@link KEY_SEEK_STEP_MS}
    *
-   * Space is suppressed while a form field is focused so it can interact with
-   * the control. The ←/→ seek is suppressed only for the **volume** slider (so
-   * its native value-stepping still works) — the seek bar keeps the ±step seek
-   * instead of nudging its own 100 ms step, which is what the user expects.
+   * Space toggles play/pause globally. The ←/→ seek is suppressed only for the
+   * **volume** slider (so its native value-stepping still works) — the seek bar
+   * keeps the ±step seek instead of nudging its own 100 ms step, which is what
+   * the user expects.
    */
   useEffect(() => {
     if (status !== "ready") return;
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement as HTMLElement | null;
-      const tag = (el?.tagName ?? "").toUpperCase();
-      const isFormField = tag === "INPUT" || tag === "TEXTAREA";
       const isVolumeSlider = !!el?.classList.contains("volume");
       if (e.code === "Space" || e.key === " ") {
-        if (isFormField) return; // let Space interact with the focused control
         e.preventDefault(); // stop the page from scrolling on Space
         controls.toggle();
       } else if (e.key === "ArrowLeft") {
