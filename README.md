@@ -8,7 +8,7 @@ All graphics are hand-drawn! And lyrics rise out of the audience as glowing char
 onto a pop-up-storybook stage, where Hatsune Miku and the Crypton cast — Kagamine Rin,
 Kagamine Len, Megurine Luka, Meiko, and Kaito — sway, bob, and spin with the music under a live spotlight.
 
-By **Tylon Guan** · ### (◕‿◕) Hello from the USA 🇺🇸 (◕‿◕)
+By **Tylon** · ### (◕‿◕) Hello from the USA 🇺🇸 (◕‿◕)
 
 ### Demo can be found here! https://miku-stage.vercel.app/
 
@@ -283,7 +283,7 @@ This entry is built to the [contest rules][procon]:
 
 - **No AI-generated assets.** All artwork — the theatre layers and every
   character cutout — is **original graphite illustration drawn by hand** for this
-  entry by Tylon Guan and digitised; none is reused from existing piapro / fan
+  entry by Tylon and digitised; none is reused from existing piapro / fan
   art or produced by an image generator. The song is the licensed contest track
   (below). The English subtitles are a **translation of the Japanese lyrics**,
   which the rules explicitly permit ("Usage for translation purposes is
@@ -334,7 +334,7 @@ pipeline (Songle). <https://developer.textalive.jp/>
 
 All theatre backdrop layers (back wall, stage floor, curtains/proscenium,
 audience seats) and the character cutouts are **original graphite illustrations**
-drawn for this entry by Tylon Guan and digitised. They are not reused from
+drawn for this entry by Tylon and digitised. They are not reused from
 existing piapro / fan art.
 
 ### Special Thanks!
@@ -352,7 +352,7 @@ Source code in this repository is released under the **MIT License** (see
 `LICENSE`) **with the following exceptions**:
 
 - The **original graphite artwork** in `art/` is the author's own work,
-  © 2026 Tylon Guan, all rights reserved. It is provided for the contest entry
+  © 2026 Tylon, all rights reserved. It is provided for the contest entry
   and may not be redistributed separately.
 - All uses of the **Crypton Piapro Characters** (Hatsune Miku, Kagamine Rin / Len,
   Megurine Luka, MEIKO, and KAITO) are governed by the
